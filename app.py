@@ -1,4 +1,3 @@
-
 import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
@@ -412,151 +411,340 @@ m4.metric("Max Deflection", f"{max_deflection:.4f} in", delta=f"Limit: L/360 = {
 
 st.divider()
 
-# ================= 1. 2D PLOTS & REACTION FORCES =================
-fig = make_subplots(
-    rows=4, cols=1, 
+# ================= 1. FREE BODY DIAGRAM (FBD) =================
+st.subheader("0. Free Body Diagram (FBD)")
+
+fig_fbd = go.Figure()
+
+# Thin beam reference line, similar to a hand-drawn engineering FBD
+fig_fbd.add_trace(go.Scatter(
+    x=[0, L],
+    y=[0, 0],
+    mode="lines",
+    line=dict(color="black", width=3),
+    hoverinfo="skip",
+    showlegend=False
+))
+
+# End labels
+fig_fbd.add_annotation(
+    x=0, y=0.08,
+    text="A",
+    showarrow=False,
+    xanchor="center",
+    font=dict(size=14, color="black")
+)
+fig_fbd.add_annotation(
+    x=L, y=0.08,
+    text="B",
+    showarrow=False,
+    xanchor="center",
+    font=dict(size=14, color="black")
+)
+
+# Coordinate axes
+axis_x0 = -0.10 * L
+axis_y0 = -0.65
+
+fig_fbd.add_annotation(
+    x=axis_x0 + 0.18 * L,
+    y=axis_y0,
+    ax=axis_x0,
+    ay=axis_y0,
+    xref="x",
+    yref="y",
+    axref="x",
+    ayref="y",
+    text="x",
+    showarrow=True,
+    arrowhead=2,
+    arrowsize=1.2,
+    arrowwidth=2,
+    arrowcolor="black",
+    font=dict(size=14, color="black")
+)
+
+fig_fbd.add_annotation(
+    x=axis_x0,
+    y=0.15,
+    ax=axis_x0,
+    ay=axis_y0,
+    xref="x",
+    yref="y",
+    axref="x",
+    ayref="y",
+    text="y",
+    showarrow=True,
+    arrowhead=2,
+    arrowsize=1.2,
+    arrowwidth=2,
+    arrowcolor="black",
+    font=dict(size=14, color="black")
+)
+
+# Reaction at A
+if "Free" not in support_A and abs(RA) > 1e-12:
+    ra_text = (
+        f"R_A = {RA*1000:.0f} lbs"
+        if "Pounds" in force_unit
+        else f"R_A = {RA:.2f} kips"
+    )
+    fig_fbd.add_annotation(
+        x=0,
+        y=0,
+        ax=0,
+        ay=-0.55 if RA >= 0 else 0.55,
+        xref="x",
+        yref="y",
+        axref="x",
+        ayref="y",
+        text=ra_text,
+        showarrow=True,
+        arrowhead=2,
+        arrowsize=1.2,
+        arrowwidth=2.5,
+        arrowcolor="#D32F2F",
+        font=dict(color="#D32F2F", size=11, family="Arial Black")
+    )
+
+# Reaction at B
+if "Free" not in support_B and abs(RB) > 1e-12:
+    rb_text = (
+        f"R_B = {RB*1000:.0f} lbs"
+        if "Pounds" in force_unit
+        else f"R_B = {RB:.2f} kips"
+    )
+    fig_fbd.add_annotation(
+        x=L,
+        y=0,
+        ax=L,
+        ay=-0.55 if RB >= 0 else 0.55,
+        xref="x",
+        yref="y",
+        axref="x",
+        ayref="y",
+        text=rb_text,
+        showarrow=True,
+        arrowhead=2,
+        arrowsize=1.2,
+        arrowwidth=2.5,
+        arrowcolor="#D32F2F",
+        font=dict(color="#D32F2F", size=11, family="Arial Black")
+    )
+
+# Fixed-end moments
+if "Fixed" in support_A and abs(MA_fix) > 1e-12:
+    fig_fbd.add_annotation(
+        x=0.04 * L,
+        y=0.45,
+        text=f"M_A = {MA_fix/12.0:.2f} kip-ft",
+        showarrow=False,
+        font=dict(color="#D32F2F", size=11, family="Arial Black")
+    )
+
+if "Fixed" in support_B and abs(MB_fix) > 1e-12:
+    fig_fbd.add_annotation(
+        x=0.96 * L,
+        y=0.45,
+        text=f"M_B = {MB_fix/12.0:.2f} kip-ft",
+        showarrow=False,
+        font=dict(color="#D32F2F", size=11, family="Arial Black")
+    )
+
+# Concentrated point loads
+for i, (p_val, x_val) in enumerate(zip(P, x_load)):
+    p_label_text = (
+        f"P{i+1} = {p_val*1000:.0f} lbs"
+        if "Pounds" in force_unit
+        else f"P{i+1} = {p_val:.2f} kips"
+    )
+    fig_fbd.add_annotation(
+        x=x_val,
+        y=0,
+        ax=x_val,
+        ay=0.75,
+        xref="x",
+        yref="y",
+        axref="x",
+        ayref="y",
+        text=p_label_text,
+        showarrow=True,
+        arrowhead=2,
+        arrowsize=1.2,
+        arrowwidth=2.5,
+        arrowcolor="#1565C0",
+        font=dict(color="#1565C0", size=11, family="Arial Black")
+    )
+
+# Moving load
+if enable_walker:
+    moving_text = (
+        f"{icon_str} {walker_load*1000:.0f} lbs"
+        if "Pounds" in force_unit
+        else f"{icon_str} {walker_load:.2f} kips"
+    )
+    fig_fbd.add_annotation(
+        x=walker_pos,
+        y=0,
+        ax=walker_pos,
+        ay=1.0,
+        xref="x",
+        yref="y",
+        axref="x",
+        ayref="y",
+        text=moving_text,
+        showarrow=True,
+        arrowhead=2,
+        arrowsize=1.2,
+        arrowwidth=2.5,
+        arrowcolor="#2E7D32",
+        font=dict(color="#2E7D32", size=11, family="Arial Black")
+    )
+
+# Distributed load represented by multiple downward arrows
+if enable_udl and udl_length > 0:
+    n_udl_arrows = 9
+    udl_positions = np.linspace(x_start, x_end, n_udl_arrows)
+
+    for udl_x in udl_positions:
+        fig_fbd.add_annotation(
+            x=udl_x,
+            y=0,
+            ax=udl_x,
+            ay=0.55,
+            xref="x",
+            yref="y",
+            axref="x",
+            ayref="y",
+            text="",
+            showarrow=True,
+            arrowhead=2,
+            arrowsize=1.0,
+            arrowwidth=2,
+            arrowcolor="#F57C00"
+        )
+
+    fig_fbd.add_trace(go.Scatter(
+        x=[x_start, x_end],
+        y=[0.55, 0.55],
+        mode="lines",
+        line=dict(color="#F57C00", width=2),
+        hoverinfo="skip",
+        showlegend=False
+    ))
+
+    w_label_text = (
+        f"w = {w_magnitude*1000:.1f} lbs/in"
+        if "Pounds" in force_unit
+        else f"w = {w_magnitude:.3f} kips/in"
+    )
+    fig_fbd.add_annotation(
+        x=(x_start + x_end) / 2,
+        y=0.72,
+        text=w_label_text,
+        showarrow=False,
+        font=dict(color="#E65100", size=11, family="Arial Black")
+    )
+
+fig_fbd.update_layout(
+    title=f"Free Body Diagram — A: {support_A}, B: {support_B}",
+    height=390,
+    showlegend=False,
+    template="plotly_white",
+    margin=dict(l=25, r=25, t=60, b=30),
+    plot_bgcolor="white"
+)
+
+fig_fbd.update_xaxes(
+    title_text="Beam Position x (in)",
+    range=[-0.15 * L, 1.05 * L],
+    showgrid=False,
+    zeroline=False
+)
+
+fig_fbd.update_yaxes(
+    visible=False,
+    range=[-0.9, 1.25],
+    showgrid=False,
+    zeroline=False
+)
+
+st.plotly_chart(fig_fbd, use_container_width=True)
+
+st.divider()
+
+# ================= 2. INTERNAL FORCE & DEFLECTION DIAGRAMS =================
+st.subheader("1. Internal Force and Deflection Diagrams")
+
+fig_results = make_subplots(
+    rows=3,
+    cols=1,
     shared_xaxes=True,
-    vertical_spacing=0.06,
+    vertical_spacing=0.08,
     subplot_titles=(
-        f"1. Beam Schematic & Reaction Forces (A: {support_A} | B: {support_B})", 
-        f"2. Shear Force Diagram (SFD)", 
-        f"3. Bending Moment Diagram (BMD) - Max: {max_m_kipft:.2f} kip-ft",
-        f"4. Deflection Curve (Elastic Line) - Max: {max_deflection:.4f} in"
+        "Shear Force Diagram (SFD)",
+        f"Bending Moment Diagram (BMD) - Max: {max_m_kipft:.2f} kip-ft",
+        f"Deflection Curve (Elastic Line) - Max: {max_deflection:.4f} in"
     )
 )
 
-# 1. Beam Schematic
-fig.add_trace(go.Scatter(
-    x=[0, L], y=[0, 0], mode='lines+markers', 
-    line=dict(color=beam_color, width=8), 
-    marker=dict(size=10, color=beam_color),
-    showlegend=False
-), row=1, col=1)
-
-# Vẽ hình dạng gối tại đầu A và B
-if "Fixed" in support_A:
-    fig.add_trace(go.Scatter(x=[0, 0], y=[-0.4, 0.4], mode='lines', line=dict(color='#D32F2F', width=6), showlegend=False), row=1, col=1)
-elif "Free" in support_A:
-    pass
-else:
-    fig.add_trace(go.Scatter(x=[0], y=[-0.3], mode='markers', marker=dict(symbol='triangle-up', size=18, color='#D32F2F'), showlegend=False), row=1, col=1)
-
-if "Fixed" in support_B:
-    fig.add_trace(go.Scatter(x=[L, L], y=[-0.4, 0.4], mode='lines', line=dict(color='#D32F2F', width=6), showlegend=False), row=1, col=1)
-elif "Free" in support_B:
-    pass
-else:
-    fig.add_trace(go.Scatter(x=[L], y=[-0.3], mode='markers', marker=dict(symbol='triangle-up', size=18, color='#D32F2F'), showlegend=False), row=1, col=1)
-
-# --- HIỂN THỊ TRỰC QUAN REACTION FORCES TRÊN SƠ ĐỒ ---
-# Phản lực A
-if support_A != "Free":
-    ra_text = f"R_A = {RA*1000:.0f} lbs" if "Pounds" in force_unit else f"R_A = {RA:.2f} kips"
-    fig.add_annotation(
-        x=0, y=-0.8, ax=0, ay=-0.1,
-        xref='x1', yref='y1', axref='x1', ayref='y1',
-        text=ra_text, showarrow=True,
-        arrowhead=2, arrowsize=1.2, arrowwidth=2.5, arrowcolor='#D32F2F',
-        font=dict(color='#D32F2F', size=11, family="Arial Black")
-    )
-if "Fixed" in support_A:
-    ma_text = f"M_A = {MA_fix/12.0:.2f} kip-ft"
-    fig.add_annotation(
-        x=0, y=0.5,
-        text=ma_text, showarrow=False,
-        font=dict(color='#D32F2F', size=11, family="Arial Black")
-    )
-
-# Phản lực B
-if support_B != "Free":
-    rb_text = f"R_B = {RB*1000:.0f} lbs" if "Pounds" in force_unit else f"R_B = {RB:.2f} kips"
-    fig.add_annotation(
-        x=L, y=-0.8, ax=L, ay=-0.1,
-        xref='x1', yref='y1', axref='x1', ayref='y1',
-        text=rb_text, showarrow=True,
-        arrowhead=2, arrowsize=1.2, arrowwidth=2.5, arrowcolor='#D32F2F',
-        font=dict(color='#D32F2F', size=11, family="Arial Black")
-    )
-if "Fixed" in support_B:
-    mb_text = f"M_B = {MB_fix/12.0:.2f} kip-ft"
-    fig.add_annotation(
-        x=L, y=0.5,
-        text=mb_text, showarrow=False,
-        font=dict(color='#D32F2F', size=11, family="Arial Black")
-    )
-
-# Point Loads chính
-for i, (p_val, x_val) in enumerate(zip(P, x_load)):
-    p_label_text = f"P{i+1}={p_val*1000:.0f} lbs" if "Pounds" in force_unit else f"P{i+1}={p_val} kips"
-    fig.add_annotation(
-        x=x_val, y=0, ax=x_val, ay=1.0,
-        xref='x1', yref='y1', axref='x1', ayref='y1',
-        text=p_label_text, showarrow=True,
-        arrowhead=2, arrowsize=1.2, arrowwidth=2.5, arrowcolor='darkblue',
-        font=dict(color='darkblue', size=11, family="Arial Black")
-    )
-
-# Moving Load
-if enable_walker:
-    moving_text = f"{icon_str} Moving: {walker_load*1000:.0f} lbs" if "Pounds" in force_unit else f"{icon_str} Moving: {walker_load} kips"
-    fig.add_annotation(
-        x=walker_pos, y=0, ax=walker_pos, ay=1.2,
-        xref='x1', yref='y1', axref='x1', ayref='y1',
-        text=moving_text, showarrow=True,
-        arrowhead=2, arrowsize=1.2, arrowwidth=2.5, arrowcolor='#2E7D32',
-        font=dict(color='#2E7D32', size=11, family="Arial Black")
-    )
-
-if enable_udl and udl_length > 0:
-    fig.add_trace(go.Scatter(
-        x=[x_start, x_end], y=[0.3, 0.3], mode='lines',
-        line=dict(color='#FF8F00', width=6),
-        name='UDL', showlegend=False
-    ), row=1, col=1)
-    
-    w_label_text = f"w = {w_magnitude*1000:.1f} lbs/in" if "Pounds" in force_unit else f"w = {w_magnitude} kips/in"
-    fig.add_annotation(
-        x=(x_start + x_end)/2, y=0.5,
-        text=w_label_text,
-        showarrow=False,
-        font=dict(color='#E65100', size=12, family="Arial Black")
-    )
-
-# 2. Shear Force Diagram
 V_plot = V * 1000.0 if "Pounds" in force_unit else V
 v_unit_label = "Shear V (lbs)" if "Pounds" in force_unit else "Shear V (kips)"
-fig.add_trace(go.Scatter(
-    x=x, y=V_plot, mode='lines', fill='tozeroy', 
-    line=dict(color='#1E88E5', width=2), name='Shear',
-    hovertemplate='Position x: %{x:.1f} in<br>Shear V: %{y:.2f}<extra></extra>'
+
+fig_results.add_trace(go.Scatter(
+    x=x,
+    y=V_plot,
+    mode="lines",
+    fill="tozeroy",
+    line=dict(color="#1E88E5", width=2),
+    name="Shear",
+    hovertemplate="Position x: %{x:.1f} in<br>Shear V: %{y:.2f}<extra></extra>"
+), row=1, col=1)
+
+fig_results.add_trace(go.Scatter(
+    x=x,
+    y=M / 12.0,
+    mode="lines",
+    fill="tozeroy",
+    line=dict(color="#E53935", width=2),
+    name="Moment",
+    hovertemplate="Position x: %{x:.1f} in<br>Moment M: %{y:.2f} kip-ft<extra></extra>"
 ), row=2, col=1)
 
-# 3. Bending Moment Diagram
-fig.add_trace(go.Scatter(
-    x=x, y=M/12.0, mode='lines', fill='tozeroy', 
-    line=dict(color='#E53935', width=2), name='Moment',
-    hovertemplate='Position x: %{x:.1f} in<br>Moment M: %{y:.2f} kip-ft<extra></extra>'
+fig_results.add_trace(go.Scatter(
+    x=x,
+    y=v_deflection,
+    mode="lines",
+    fill="tozeroy",
+    line=dict(color="#43A047", width=2),
+    name="Deflection",
+    hovertemplate="Position x: %{x:.1f} in<br>Deflection: %{y:.4f} in<extra></extra>"
 ), row=3, col=1)
 
-# 4. Deflection Curve
-fig.add_trace(go.Scatter(
-    x=x, y=v_deflection, mode='lines', fill='tozeroy',
-    line=dict(color='#43A047', width=2), name='Deflection',
-    hovertemplate='Position x: %{x:.1f} in<br>Deflection: %{y:.4f} in<extra></extra>'
-), row=4, col=1)
-
 for x_val in all_x:
-    for r in [1, 2, 3, 4]:
-        fig.add_vline(x=x_val, line_width=1, line_dash="dash", line_color="gray", opacity=0.7, row=r, col=1)
+    for row_number in [1, 2, 3]:
+        fig_results.add_vline(
+            x=x_val,
+            line_width=1,
+            line_dash="dash",
+            line_color="gray",
+            opacity=0.7,
+            row=row_number,
+            col=1
+        )
 
-fig.update_layout(height=880, showlegend=False, hovermode="x unified", template="plotly_white")
-fig.update_yaxes(visible=False, row=1, col=1)
-fig.update_yaxes(title_text=v_unit_label, row=2, col=1)
-fig.update_yaxes(title_text="Moment (kip-ft)", row=3, col=1)
-fig.update_yaxes(title_text="Deflection (in)", row=4, col=1)
-fig.update_xaxes(title_text="Beam Position x (in)", row=4, col=1)
+fig_results.update_layout(
+    height=720,
+    showlegend=False,
+    hovermode="x unified",
+    template="plotly_white"
+)
+fig_results.update_yaxes(title_text=v_unit_label, row=1, col=1)
+fig_results.update_yaxes(title_text="Moment (kip-ft)", row=2, col=1)
+fig_results.update_yaxes(title_text="Deflection (in)", row=3, col=1)
+fig_results.update_xaxes(title_text="Beam Position x (in)", row=3, col=1)
 
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig_results, use_container_width=True)
 
 st.divider()
 
@@ -577,6 +765,6 @@ with col_st2:
     st.write(f"- **Moment of Inertia I:** `{I:,.1f} in^4`")
 
 with col_st3:
-    st.write(f"- **Max Bending Stress ($\sigma_{{max}}$):** `{sigma_max:.2f} ksi` (Allowable: `{sigma_allow:.2f} ksi`)")
-    st.write(f"- **Max Shear Stress ($\tau_{{max}}$):** `{tau_max:.3f} ksi` (Allowable: `{tau_allow:.2f} ksi`)")
+    st.write(f"- **Max Bending Stress ($\\sigma_{{max}}$):** `{sigma_max:.2f} ksi` (Allowable: `{sigma_allow:.2f} ksi`)")
+    st.write(f"- **Max Shear Stress ($\\tau_{{max}}$):** `{tau_max:.3f} ksi` (Allowable: `{tau_allow:.2f} ksi`)")
     st.write(f"- **Max Deflection:** `{max_deflection:.4f} in` (Limit L/360: `{L/360:.2f} in`)")
