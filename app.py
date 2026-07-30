@@ -1,3 +1,4 @@
+%%writefile app.py
 import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
@@ -6,8 +7,8 @@ from plotly.subplots import make_subplots
 # Page configuration
 st.set_page_config(page_title="Professional Beam Analysis (2D)", page_icon="🏗️", layout="wide")
 
-st.title("🏗️ Interactive Beam Analysis & 2D Cross-Section Preview")
-st.caption("Beam diagrams with Imperial units, unit conversion, interactive sidebar dimensions, deflection, and shear check")
+st.title("🏗️ Interactive Beam Analysis & Reaction Forces")
+st.caption("Beam diagrams with support configurations, reaction forces visualization, moving load simulation, and safety checks")
 
 # ================= SIDEBAR INPUTS (IMPERIAL) =================
 with st.sidebar:
@@ -22,6 +23,15 @@ with st.sidebar:
     
     st.subheader("Force Unit Selection")
     force_unit = st.selectbox("Select Force Unit", ["kips (1 kip = 1,000 lbs)", "Pounds (lbs)"])
+    
+    st.subheader("Support Configurations (Boundary Conditions)")
+    support_options = ["Pinned (Hinged)", "Roller", "Fixed (Ngàm)", "Free (Tự do)"]
+    
+    col_s1, col_s2 = st.columns(2)
+    with col_s1:
+        support_A = st.selectbox("Support A (Left)", support_options, index=0)
+    with col_s2:
+        support_B = st.selectbox("Support B (Right)", support_options, index=1)
     
     st.subheader("1. Point Loads")
     n_loads = st.number_input("Number of Point Loads", min_value=0, max_value=5, value=1)
@@ -42,6 +52,47 @@ with st.sidebar:
                 x_val = st.number_input(f"Position x{i+1} from A (in)", min_value=0.0, max_value=float(L), value=48.0, key=f"x_{i}")
             P.append(p_val)
             x_load.append(x_val)
+
+    # ================= MÔ PHỎNG TẢI TRỌNG DI ĐỘNG =================
+    st.subheader("🚗 Moving Load Simulation")
+    enable_walker = st.toggle("Enable Moving Load Simulation", value=True)
+    
+    if enable_walker:
+        load_type = st.selectbox("Select Moving Load Type", [
+            "🚶‍♂️ Walker / Pedestrian (~180 lbs)", 
+            "🛒 Cart / Hand Truck (~500 lbs)", 
+            "🚜 Forklift / Heavy Cart (~3,000 lbs)",
+            "⚙️ Custom Moving Load"
+        ])
+        
+        if "Walker" in load_type:
+            default_wt_lb = 180.0
+            icon_str = "🚶‍♂️"
+        elif "Cart" in load_type and "Hand" in load_type:
+            default_wt_lb = 500.0
+            icon_str = "🛒"
+        elif "Forklift" in load_type:
+            default_wt_lb = 3000.0
+            icon_str = "🚜"
+        else:
+            default_wt_lb = 1000.0
+            icon_str = "⚙️"
+
+        if "Pounds" in force_unit:
+            walker_wt_lb = st.number_input("Moving Load Weight (lbs)", min_value=10.0, value=default_wt_lb, step=50.0)
+            walker_load = walker_wt_lb / 1000.0
+        else:
+            walker_load = st.number_input("Moving Load Weight (kips)", min_value=0.01, value=default_wt_lb/1000.0, step=0.1)
+            
+        if "Feet" in len_unit:
+            walker_pos_ft = st.slider("Position x_moving (ft)", min_value=0.0, max_value=float(L/12.0), value=float(L/24.0), step=0.5)
+            walker_pos = walker_pos_ft * 12.0
+        else:
+            walker_pos = st.slider("Position x_moving (in)", min_value=0.0, max_value=float(L), value=float(L/2.0), step=1.0)
+    else:
+        walker_load = 0.0
+        walker_pos = 0.0
+        icon_str = "🚗"
 
     st.subheader("2. Distributed Load (UDL)")
     enable_udl = st.toggle("Enable Distributed Load (UDL)", value=False)
@@ -70,7 +121,7 @@ with st.sidebar:
         h = st.slider("Total Height h (in)", min_value=1.0, max_value=36.0, value=16.0, step=0.5)
         I = b * (h**3) / 12.0
         S = I / (h / 2.0)
-        A_web = b * h  # Dùng cho diện tích cắt xấp xỉ
+        A_web = b * h
         
     elif section_shape == "Hollow Box / Tube":
         b = st.slider("Outer Width b (in)", min_value=2.0, max_value=24.0, value=8.0, step=0.5)
@@ -80,7 +131,7 @@ with st.sidebar:
         h_in = max(0.1, h - 2 * t_wall)
         I = (b * (h**3) - b_in * (h_in**3)) / 12.0
         S = I / (h / 2.0)
-        A_web = 2 * t_wall * h  # Diện tích 2 bản bụng
+        A_web = 2 * t_wall * h
         
     else: # I-Shape
         b = st.slider("Flange Width b (in)", min_value=2.0, max_value=24.0, value=8.0, step=0.5)
@@ -90,7 +141,7 @@ with st.sidebar:
         h_web = max(0.1, h - 2 * t_flange)
         I = (t_web * (h_web**3) / 12.0) + 2 * (b * (t_flange**3) / 12.0 + b * t_flange * ((h - t_flange)/2.0)**2)
         S = I / (h / 2.0)
-        A_web = t_web * h_web  # Diện tích bản bụng chịu cắt chính
+        A_web = t_web * h_web
 
     # ================= 2D CROSS-SECTION PROFILE VIEW =================
     st.markdown("---")
@@ -160,7 +211,10 @@ else:
     beam_color = "#7E57C2"
     theme_name = "Custom Material"
 
-# ================= CALCULATIONS =================
+# ================= CALCULATIONS BASED ON SUPPORTS =================
+all_P = list(P) + ([walker_load] if enable_walker else [])
+all_x = list(x_load) + ([walker_pos] if enable_walker else [])
+
 if enable_udl and x_end > x_start:
     udl_length = x_end - x_start
     udl_total_force = w_magnitude * udl_length
@@ -170,46 +224,163 @@ else:
     udl_center = 0.0
     udl_length = 0.0
 
-sum_moments_A = sum(p * x for p, x in zip(P, x_load)) + (udl_total_force * udl_center if enable_udl else 0.0)
-RB = sum_moments_A / L if L > 0 else 0.0
-total_downward = sum(P) + (udl_total_force if enable_udl else 0.0)
-RA = total_downward - RB
-
 x = np.linspace(0, L, 1000)
-V = np.full_like(x, RA)
-M = RA * x
+V = np.zeros_like(x)
+M = np.zeros_like(x)
 
-for load, loc in zip(P, x_load):
-    active = x >= loc
-    V[active] -= load
-    M[active] -= load * (x[active] - loc)
+RA, RB, MA_fix, MB_fix = 0.0, 0.0, 0.0, 0.0
 
-if enable_udl and udl_length > 0:
-    for idx, xi in enumerate(x):
-        if xi > x_start:
-            effective_len = min(xi, x_end) - x_start
-            if effective_len > 0:
-                V[idx] -= w_magnitude * effective_len
-                lever_arm = xi - (x_start + effective_len / 2.0)
-                M[idx] -= w_magnitude * effective_len * lever_arm
+is_cantilever = ("Fixed" in support_A and "Free" in support_B) or ("Free" in support_A and "Fixed" in support_B)
+is_fixed_fixed = ("Fixed" in support_A and "Fixed" in support_B)
+is_propped = ("Fixed" in support_A and ("Pinned" in support_B or "Roller" in support_B)) or (("Pinned" in support_A or "Roller" in support_A) and "Fixed" in support_B)
+
+if is_cantilever:
+    if "Fixed" in support_A:
+        total_downward = sum(all_P) + (udl_total_force if enable_udl else 0.0)
+        RA = total_downward
+        RB = 0.0
+        sum_moments_fixed = sum(p * x_pos for p, x_pos in zip(all_P, all_x)) + (udl_total_force * udl_center if enable_udl else 0.0)
+        MA_fix = sum_moments_fixed
+        MB_fix = 0.0
+        
+        V = np.full_like(x, RA)
+        M = -MA_fix + RA * x
+        for load, loc in zip(all_P, all_x):
+            active = x >= loc
+            V[active] -= load
+            M[active] += load * (x[active] - loc)
+        if enable_udl and udl_length > 0:
+            for idx, xi in enumerate(x):
+                if xi > x_start:
+                    effective_len = min(xi, x_end) - x_start
+                    if effective_len > 0:
+                        V[idx] -= w_magnitude * effective_len
+                        lever_arm = xi - (x_start + effective_len / 2.0)
+                        M[idx] += w_magnitude * effective_len * lever_arm
+    else:
+        total_downward = sum(all_P) + (udl_total_force if enable_udl else 0.0)
+        RA = 0.0
+        RB = total_downward
+        sum_moments_fixed = sum(p * (L - x_pos) for p, x_pos in zip(all_P, all_x)) + (udl_total_force * (L - udl_center) if enable_udl else 0.0)
+        MA_fix = 0.0
+        MB_fix = sum_moments_fixed
+
+        V = np.zeros_like(x)
+        M = np.zeros_like(x)
+        for idx, xi in enumerate(x):
+            v_sum, m_sum = 0.0, 0.0
+            for load, loc in zip(all_P, all_x):
+                if xi >= loc:
+                    v_sum += load
+                    m_sum += load * (xi - loc)
+            if enable_udl and udl_length > 0:
+                if xi > x_start:
+                    eff_len = min(xi, x_end) - x_start
+                    if eff_len > 0:
+                        v_sum += w_magnitude * eff_len
+                        m_sum += w_magnitude * eff_len * (xi - (x_start + eff_len / 2.0))
+            V[idx] = v_sum
+            M[idx] = m_sum
+
+elif is_fixed_fixed:
+    total_downward = sum(all_P) + (udl_total_force if enable_udl else 0.0)
+    RA = total_downward / 2.0
+    RB = total_downward / 2.0
+    sum_m = sum(p * x_pos for p, x_pos in zip(all_P, all_x)) + (udl_total_force * udl_center if enable_udl else 0.0)
+    MA_fix = sum_m / 2.0
+    MB_fix = sum_m / 2.0
+
+    V = np.full_like(x, RA)
+    M = RA * x - MA_fix
+    for load, loc in zip(all_P, all_x):
+        active = x >= loc
+        V[active] -= load
+        M[active] -= load * (x[active] - loc)
+    if enable_udl and udl_length > 0:
+        for idx, xi in enumerate(x):
+            if xi > x_start:
+                effective_len = min(xi, x_end) - x_start
+                if effective_len > 0:
+                    V[idx] -= w_magnitude * effective_len
+                    lever_arm = xi - (x_start + effective_len / 2.0)
+                    M[idx] -= w_magnitude * effective_len * lever_arm
+
+elif is_propped:
+    if "Fixed" in support_A:
+        sum_m_free = sum(p * (L - x_pos) for p, x_pos in zip(all_P, all_x))
+        if enable_udl and udl_length > 0:
+            sum_m_free += w_magnitude * udl_length * (L - udl_center)
+        RB = sum_m_free / (0.5 * (L**2)) if L > 0 else 0.0
+        total_downward = sum(all_P) + (udl_total_force if enable_udl else 0.0)
+        RA = total_downward - RB
+        MA_fix = sum(p * x_pos for p, x_pos in zip(all_P, all_x)) + (udl_total_force * udl_center if enable_udl else 0.0) - RB * L
+        MB_fix = 0.0
+    else:
+        sum_m_free = sum(p * x_pos for p, x_pos in zip(all_P, all_x))
+        if enable_udl and udl_length > 0:
+            sum_m_free += w_magnitude * udl_length * udl_center
+        RA = sum_m_free / (0.5 * (L**2)) if L > 0 else 0.0
+        total_downward = sum(all_P) + (udl_total_force if enable_udl else 0.0)
+        RB = total_downward - RA
+        MA_fix = 0.0
+        MB_fix = sum_m_free
+
+    V = np.full_like(x, RA)
+    M = RA * x - MA_fix
+    for load, loc in zip(all_P, all_x):
+        active = x >= loc
+        V[active] -= load
+        M[active] -= load * (x[active] - loc)
+    if enable_udl and udl_length > 0:
+        for idx, xi in enumerate(x):
+            if xi > x_start:
+                effective_len = min(xi, x_end) - x_start
+                if effective_len > 0:
+                    V[idx] -= w_magnitude * effective_len
+                    lever_arm = xi - (x_start + effective_len / 2.0)
+                    M[idx] -= w_magnitude * effective_len * lever_arm
+
+else: # Simply Supported
+    sum_moments_A = sum(p * x_pos for p, x_pos in zip(all_P, all_x)) + (udl_total_force * udl_center if enable_udl else 0.0)
+    RB = sum_moments_A / L if L > 0 else 0.0
+    total_downward = sum(all_P) + (udl_total_force if enable_udl else 0.0)
+    RA = total_downward - RB
+    MA_fix, MB_fix = 0.0, 0.0
+
+    V = np.full_like(x, RA)
+    M = RA * x
+    for load, loc in zip(all_P, all_x):
+        active = x >= loc
+        V[active] -= load
+        M[active] -= load * (x[active] - loc)
+    if enable_udl and udl_length > 0:
+        for idx, xi in enumerate(x):
+            if xi > x_start:
+                effective_len = min(xi, x_end) - x_start
+                if effective_len > 0:
+                    V[idx] -= w_magnitude * effective_len
+                    lever_arm = xi - (x_start + effective_len / 2.0)
+                    M[idx] -= w_magnitude * effective_len * lever_arm
 
 max_v = np.max(np.abs(V)) if len(V) > 0 else 0.0
 max_m = np.max(np.abs(M)) if len(M) > 0 else 0.0
 max_m_kipft = max_m / 12.0
-max_m_loc = x[np.argmax(np.abs(M))] if len(M) > 0 else 0.0
 
-# Tính độ võng xấp xỉ bằng phương pháp tích phân số đơn giản cho dầm đơn giản
-# (Giả lập độ cong v''(x) = M(x) / (E * I))
 dx = L / 999.0
 EI = E_modulus * I
 if EI > 0:
-    # Tích phân kép Moment để tính độ võng v(x)
     curvature = M / EI
     theta = np.cumsum(curvature) * dx
-    # Điều kiện biên: độ võng bằng 0 tại x = 0 và x = L
-    theta -= theta[-1] * (x / L) # Hiệu chỉnh góc xoay
-    v_deflection = np.cumsum(theta) * dx
-    v_deflection -= v_deflection[0] * (1 - x/L) + v_deflection[-1] * (x/L)
+    if is_cantilever and "Fixed" in support_A:
+        v_deflection = np.cumsum(theta) * dx
+    elif is_cantilever and "Fixed" in support_B:
+        theta_rev = theta - theta[-1]
+        v_deflection = np.cumsum(theta_rev) * dx
+        v_deflection -= v_deflection[-1]
+    else:
+        theta -= theta[-1] * (x / L)
+        v_deflection = np.cumsum(theta) * dx
+        v_deflection -= v_deflection[0] * (1 - x/L) + v_deflection[-1] * (x/L)
     max_deflection = np.max(np.abs(v_deflection))
 else:
     v_deflection = np.zeros_like(x)
@@ -218,7 +389,7 @@ else:
 sigma_max = max_m / S if S > 0 else 0.0
 tau_max = max_v / A_web if A_web > 0 else 0.0
 sigma_allow = yield_strength / factor_of_safety if factor_of_safety > 0 else 1.0
-tau_allow = (0.577 * yield_strength) / factor_of_safety # Tiêu chuẩn von Mises cho ứng suất cắt cho phép
+tau_allow = (0.577 * yield_strength) / factor_of_safety
 utilization_ratio = sigma_max / sigma_allow
 
 # Summary Metrics Display
@@ -241,13 +412,13 @@ m4.metric("Max Deflection", f"{max_deflection:.4f} in", delta=f"Limit: L/360 = {
 
 st.divider()
 
-# ================= 1. 2D PLOTS (BEAM SCHEMATIC, SFD, BMD & DEFLECTION) =================
+# ================= 1. 2D PLOTS & REACTION FORCES =================
 fig = make_subplots(
     rows=4, cols=1, 
     shared_xaxes=True,
     vertical_spacing=0.06,
     subplot_titles=(
-        f"1. Beam Schematic ({theme_name}) & Active Loads", 
+        f"1. Beam Schematic & Reaction Forces (A: {support_A} | B: {support_B})", 
         f"2. Shear Force Diagram (SFD)", 
         f"3. Bending Moment Diagram (BMD) - Max: {max_m_kipft:.2f} kip-ft",
         f"4. Deflection Curve (Elastic Line) - Max: {max_deflection:.4f} in"
@@ -262,9 +433,59 @@ fig.add_trace(go.Scatter(
     showlegend=False
 ), row=1, col=1)
 
-fig.add_trace(go.Scatter(x=[0], y=[-0.3], mode='markers', marker=dict(symbol='triangle-up', size=18, color='#D32F2F'), showlegend=False), row=1, col=1)
-fig.add_trace(go.Scatter(x=[L], y=[-0.3], mode='markers', marker=dict(symbol='triangle-up', size=18, color='#D32F2F'), showlegend=False), row=1, col=1)
+# Vẽ hình dạng gối tại đầu A và B
+if "Fixed" in support_A:
+    fig.add_trace(go.Scatter(x=[0, 0], y=[-0.4, 0.4], mode='lines', line=dict(color='#D32F2F', width=6), showlegend=False), row=1, col=1)
+elif "Free" in support_A:
+    pass
+else:
+    fig.add_trace(go.Scatter(x=[0], y=[-0.3], mode='markers', marker=dict(symbol='triangle-up', size=18, color='#D32F2F'), showlegend=False), row=1, col=1)
 
+if "Fixed" in support_B:
+    fig.add_trace(go.Scatter(x=[L, L], y=[-0.4, 0.4], mode='lines', line=dict(color='#D32F2F', width=6), showlegend=False), row=1, col=1)
+elif "Free" in support_B:
+    pass
+else:
+    fig.add_trace(go.Scatter(x=[L], y=[-0.3], mode='markers', marker=dict(symbol='triangle-up', size=18, color='#D32F2F'), showlegend=False), row=1, col=1)
+
+# --- HIỂN THỊ TRỰC QUAN REACTION FORCES TRÊN SƠ ĐỒ ---
+# Phản lực A
+if support_A != "Free":
+    ra_text = f"R_A = {RA*1000:.0f} lbs" if "Pounds" in force_unit else f"R_A = {RA:.2f} kips"
+    fig.add_annotation(
+        x=0, y=-0.8, ax=0, ay=-0.1,
+        xref='x1', yref='y1', axref='x1', ayref='y1',
+        text=ra_text, showarrow=True,
+        arrowhead=2, arrowsize=1.2, arrowwidth=2.5, arrowcolor='#D32F2F',
+        font=dict(color='#D32F2F', size=11, family="Arial Black")
+    )
+if "Fixed" in support_A:
+    ma_text = f"M_A = {MA_fix/12.0:.2f} kip-ft"
+    fig.add_annotation(
+        x=0, y=0.5,
+        text=ma_text, showarrow=False,
+        font=dict(color='#D32F2F', size=11, family="Arial Black")
+    )
+
+# Phản lực B
+if support_B != "Free":
+    rb_text = f"R_B = {RB*1000:.0f} lbs" if "Pounds" in force_unit else f"R_B = {RB:.2f} kips"
+    fig.add_annotation(
+        x=L, y=-0.8, ax=L, ay=-0.1,
+        xref='x1', yref='y1', axref='x1', ayref='y1',
+        text=rb_text, showarrow=True,
+        arrowhead=2, arrowsize=1.2, arrowwidth=2.5, arrowcolor='#D32F2F',
+        font=dict(color='#D32F2F', size=11, family="Arial Black")
+    )
+if "Fixed" in support_B:
+    mb_text = f"M_B = {MB_fix/12.0:.2f} kip-ft"
+    fig.add_annotation(
+        x=L, y=0.5,
+        text=mb_text, showarrow=False,
+        font=dict(color='#D32F2F', size=11, family="Arial Black")
+    )
+
+# Point Loads chính
 for i, (p_val, x_val) in enumerate(zip(P, x_load)):
     p_label_text = f"P{i+1}={p_val*1000:.0f} lbs" if "Pounds" in force_unit else f"P{i+1}={p_val} kips"
     fig.add_annotation(
@@ -273,6 +494,17 @@ for i, (p_val, x_val) in enumerate(zip(P, x_load)):
         text=p_label_text, showarrow=True,
         arrowhead=2, arrowsize=1.2, arrowwidth=2.5, arrowcolor='darkblue',
         font=dict(color='darkblue', size=11, family="Arial Black")
+    )
+
+# Moving Load
+if enable_walker:
+    moving_text = f"{icon_str} Moving: {walker_load*1000:.0f} lbs" if "Pounds" in force_unit else f"{icon_str} Moving: {walker_load} kips"
+    fig.add_annotation(
+        x=walker_pos, y=0, ax=walker_pos, ay=1.2,
+        xref='x1', yref='y1', axref='x1', ayref='y1',
+        text=moving_text, showarrow=True,
+        arrowhead=2, arrowsize=1.2, arrowwidth=2.5, arrowcolor='#2E7D32',
+        font=dict(color='#2E7D32', size=11, family="Arial Black")
     )
 
 if enable_udl and udl_length > 0:
@@ -313,11 +545,11 @@ fig.add_trace(go.Scatter(
     hovertemplate='Position x: %{x:.1f} in<br>Deflection: %{y:.4f} in<extra></extra>'
 ), row=4, col=1)
 
-for x_val in x_load:
+for x_val in all_x:
     for r in [1, 2, 3, 4]:
         fig.add_vline(x=x_val, line_width=1, line_dash="dash", line_color="gray", opacity=0.7, row=r, col=1)
 
-fig.update_layout(height=860, showlegend=False, hovermode="x unified", template="plotly_white")
+fig.update_layout(height=880, showlegend=False, hovermode="x unified", template="plotly_white")
 fig.update_yaxes(visible=False, row=1, col=1)
 fig.update_yaxes(title_text=v_unit_label, row=2, col=1)
 fig.update_yaxes(title_text="Moment (kip-ft)", row=3, col=1)
@@ -339,20 +571,12 @@ with col_st1:
         st.error(f"### FAIL ❌\n**Bending Utilization:** {utilization_ratio:.1%}")
 
 with col_st2:
+    st.write(f"- **Support A:** `{support_A}` | **Support B:** `{support_B}`")
     st.write(f"- **Selected Material:** `{mat_name}` ({theme_name})")
     st.write(f"- **Section Shape:** `{section_shape}`")
     st.write(f"- **Moment of Inertia I:** `{I:,.1f} in^4`")
 
 with col_st3:
-    st.write(
-        f"- **Max Bending Stress ($\\sigma_{{max}}$):** "
-        f"`{sigma_max:.2f} ksi` (Allowable: `{sigma_allow:.2f} ksi`)"
-    )
-    st.write(
-        f"- **Max Shear Stress ($\\tau_{{max}}$):** "
-        f"`{tau_max:.3f} ksi` (Allowable: `{tau_allow:.2f} ksi`)"
-    )
-    st.write(
-        f"- **Max Deflection:** `{max_deflection:.4f} in` "
-        f"(Limit L/360: `{L/360:.2f} in`)"
-    )
+    st.write(f"- **Max Bending Stress ($\sigma_{{max}}$):** `{sigma_max:.2f} ksi` (Allowable: `{sigma_allow:.2f} ksi`)")
+    st.write(f"- **Max Shear Stress ($\tau_{{max}}$):** `{tau_max:.3f} ksi` (Allowable: `{tau_allow:.2f} ksi`)")
+    st.write(f"- **Max Deflection:** `{max_deflection:.4f} in` (Limit L/360: `{L/360:.2f} in`)")
