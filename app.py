@@ -411,6 +411,173 @@ m4.metric("Max Deflection", f"{max_deflection:.4f} in", delta=f"Limit: L/360 = {
 
 st.divider()
 
+
+# ================= 0. PROBLEM DIAGRAM / BEAM SCHEMATIC =================
+st.subheader("0. Problem Diagram / Beam Schematic")
+
+fig_problem = go.Figure()
+
+# Beam body
+fig_problem.add_trace(go.Scatter(
+    x=[0, L],
+    y=[0, 0],
+    mode="lines",
+    line=dict(color=beam_color, width=12),
+    hoverinfo="skip",
+    showlegend=False
+))
+
+# Support A
+if "Fixed" in support_A:
+    fig_problem.add_trace(go.Scatter(
+        x=[0, 0], y=[-0.45, 0.45],
+        mode="lines",
+        line=dict(color="#424242", width=8),
+        showlegend=False
+    ))
+elif "Free" not in support_A:
+    fig_problem.add_trace(go.Scatter(
+        x=[0], y=[-0.28],
+        mode="markers",
+        marker=dict(symbol="triangle-up", size=22, color="#424242"),
+        showlegend=False
+    ))
+
+# Support B
+if "Fixed" in support_B:
+    fig_problem.add_trace(go.Scatter(
+        x=[L, L], y=[-0.45, 0.45],
+        mode="lines",
+        line=dict(color="#424242", width=8),
+        showlegend=False
+    ))
+elif "Free" not in support_B:
+    support_symbol_B = "circle" if "Roller" in support_B else "triangle-up"
+    fig_problem.add_trace(go.Scatter(
+        x=[L], y=[-0.28],
+        mode="markers",
+        marker=dict(symbol=support_symbol_B, size=22, color="#616161"),
+        showlegend=False
+    ))
+
+# Labels A and B
+fig_problem.add_annotation(
+    x=0, y=0.25, text="A", showarrow=False,
+    font=dict(size=14, color="black")
+)
+fig_problem.add_annotation(
+    x=L, y=0.25, text="B", showarrow=False,
+    font=dict(size=14, color="black")
+)
+
+# Point loads
+for i, (p_val, x_val) in enumerate(zip(P, x_load)):
+    p_label = (
+        f"P{i+1} = {p_val*1000:.0f} lbs"
+        if "Pounds" in force_unit
+        else f"P{i+1} = {p_val:.2f} kips"
+    )
+    fig_problem.add_annotation(
+        x=x_val, y=0,
+        ax=x_val, ay=0.95,
+        xref="x", yref="y",
+        axref="x", ayref="y",
+        text=p_label,
+        showarrow=True,
+        arrowhead=2,
+        arrowsize=1.2,
+        arrowwidth=2.5,
+        arrowcolor="#D32F2F",
+        font=dict(color="#D32F2F", size=11, family="Arial Black")
+    )
+
+# Moving load
+if enable_walker:
+    moving_label = (
+        f"{icon_str} {walker_load*1000:.0f} lbs"
+        if "Pounds" in force_unit
+        else f"{icon_str} {walker_load:.2f} kips"
+    )
+    fig_problem.add_annotation(
+        x=walker_pos, y=0,
+        ax=walker_pos, ay=1.15,
+        xref="x", yref="y",
+        axref="x", ayref="y",
+        text=moving_label,
+        showarrow=True,
+        arrowhead=2,
+        arrowsize=1.2,
+        arrowwidth=2.5,
+        arrowcolor="#2E7D32",
+        font=dict(color="#2E7D32", size=11, family="Arial Black")
+    )
+
+# UDL
+if enable_udl and udl_length > 0:
+    udl_positions = np.linspace(x_start, x_end, 9)
+
+    for udl_x in udl_positions:
+        fig_problem.add_annotation(
+            x=udl_x, y=0,
+            ax=udl_x, ay=0.6,
+            xref="x", yref="y",
+            axref="x", ayref="y",
+            text="",
+            showarrow=True,
+            arrowhead=2,
+            arrowsize=1,
+            arrowwidth=2,
+            arrowcolor="#F57C00"
+        )
+
+    fig_problem.add_trace(go.Scatter(
+        x=[x_start, x_end],
+        y=[0.6, 0.6],
+        mode="lines",
+        line=dict(color="#F57C00", width=2),
+        hoverinfo="skip",
+        showlegend=False
+    ))
+
+    w_label = (
+        f"w = {w_magnitude*1000:.1f} lbs/in"
+        if "Pounds" in force_unit
+        else f"w = {w_magnitude:.3f} kips/in"
+    )
+    fig_problem.add_annotation(
+        x=(x_start + x_end) / 2,
+        y=0.78,
+        text=w_label,
+        showarrow=False,
+        font=dict(color="#E65100", size=11, family="Arial Black")
+    )
+
+fig_problem.update_layout(
+    title=f"Beam Schematic — A: {support_A}, B: {support_B}",
+    height=340,
+    showlegend=False,
+    template="plotly_white",
+    margin=dict(l=25, r=25, t=60, b=30)
+)
+
+fig_problem.update_xaxes(
+    title_text="Beam Position x (in)",
+    range=[-0.05 * L, 1.05 * L],
+    showgrid=False,
+    zeroline=False
+)
+
+fig_problem.update_yaxes(
+    visible=False,
+    range=[-0.65, 1.35],
+    showgrid=False,
+    zeroline=False
+)
+
+st.plotly_chart(fig_problem, use_container_width=True)
+
+st.divider()
+
 # ================= 1. FREE BODY DIAGRAM (FBD) =================
 st.subheader("0. Free Body Diagram (FBD)")
 
