@@ -1,640 +1,358 @@
-import io
-import numpy as np
-import pandas as pd
 import streamlit as st
-import matplotlib.pyplot as plt
+import numpy as np
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
-st.set_page_config(
-    page_title="Interactive Beam Analysis",
-    page_icon="📐",
-    layout="wide"
-)
+# Page configuration
+st.set_page_config(page_title="Professional Beam Analysis (2D)", page_icon="🏗️", layout="wide")
 
-st.title("Interactive Beam Analysis and Material Check")
-st.caption(
-    "Simply supported beam analysis with point loads, distributed loads, "
-    "free-body diagram, shear-force diagram, bending-moment diagram, "
-    "and simplified material checking."
-)
+st.title("🏗️ Interactive Beam Analysis & 2D Cross-Section Preview")
+st.caption("Beam diagrams with Imperial units, unit conversion, interactive sidebar dimensions, deflection, and shear check")
 
-# ---------------------------------------------------------
-# SIDEBAR
-# ---------------------------------------------------------
-st.sidebar.header("Beam Settings")
-
-L = st.sidebar.number_input(
-    "Beam length L (m)",
-    min_value=0.10,
-    value=6.00,
-    step=0.10
-)
-
-load_mode = st.sidebar.selectbox(
-    "Input method",
-    ["Manual Input", "Upload CSV"]
-)
-
-load_type = st.sidebar.selectbox(
-    "Load type",
-    ["Point Loads", "Uniform Distributed Load", "Combined Loads"]
-)
-
-st.sidebar.header("Cross Section")
-
-section_type = st.sidebar.selectbox(
-    "Section shape",
-    ["Rectangular", "Circular", "Hollow Rectangular"]
-)
-
-if section_type == "Rectangular":
-    b = st.sidebar.number_input(
-        "Width b (mm)", min_value=1.0, value=200.0, step=10.0
-    )
-    h = st.sidebar.number_input(
-        "Height h (mm)", min_value=1.0, value=400.0, step=10.0
-    )
-    I = b * h**3 / 12.0
-    c = h / 2.0
-
-elif section_type == "Circular":
-    d = st.sidebar.number_input(
-        "Diameter d (mm)", min_value=1.0, value=300.0, step=10.0
-    )
-    I = np.pi * d**4 / 64.0
-    c = d / 2.0
-
-else:
-    bo = st.sidebar.number_input(
-        "Outer width bo (mm)", min_value=2.0, value=300.0, step=10.0
-    )
-    ho = st.sidebar.number_input(
-        "Outer height ho (mm)", min_value=2.0, value=500.0, step=10.0
-    )
-    bi = st.sidebar.number_input(
-        "Inner width bi (mm)", min_value=1.0, value=200.0, step=10.0
-    )
-    hi = st.sidebar.number_input(
-        "Inner height hi (mm)", min_value=1.0, value=400.0, step=10.0
-    )
-
-    if bi >= bo or hi >= ho:
-        st.sidebar.error("Inner dimensions must be smaller than outer dimensions.")
-        I = np.nan
-        c = ho / 2.0
+# ================= SIDEBAR INPUTS (IMPERIAL) =================
+with st.sidebar:
+    st.header("⚙️ Beam & Load Parameters (Imperial)")
+    
+    len_unit = st.radio("Length Unit for Beam", ["Inches (in)", "Feet (ft)"], horizontal=True)
+    if "Feet" in len_unit:
+        L_ft = st.number_input("Beam Length L (ft)", min_value=0.1, value=16.0, step=1.0)
+        L = L_ft * 12.0
     else:
-        I = (bo * ho**3 - bi * hi**3) / 12.0
-        c = ho / 2.0
+        L = st.number_input("Beam Length L (in)", min_value=1.0, value=192.0, step=12.0)
+    
+    st.subheader("Force Unit Selection")
+    force_unit = st.selectbox("Select Force Unit", ["kips (1 kip = 1,000 lbs)", "Pounds (lbs)"])
+    
+    st.subheader("1. Point Loads")
+    n_loads = st.number_input("Number of Point Loads", min_value=0, max_value=5, value=1)
+    
+    P, x_load = [], []
+    for i in range(int(n_loads)):
+        with st.expander(f"Load P{i+1}", expanded=True):
+            if "Pounds" in force_unit:
+                p_val_lb = st.number_input(f"Magnitude P{i+1} (lbs)", min_value=10.0, value=5000.0, step=100.0, key=f"p_{i}")
+                p_val = p_val_lb / 1000.0
+            else:
+                p_val = st.number_input(f"Magnitude P{i+1} (kips)", min_value=0.01, value=5.0, step=0.5, key=f"p_{i}")
 
-S = I / c if np.isfinite(I) and c > 0 else np.nan
+            if "Feet" in len_unit:
+                x_val_ft = st.number_input(f"Position x{i+1} from A (ft)", min_value=0.0, max_value=float(L/12.0), value=4.0, key=f"x_{i}")
+                x_val = x_val_ft * 12.0
+            else:
+                x_val = st.number_input(f"Position x{i+1} from A (in)", min_value=0.0, max_value=float(L), value=48.0, key=f"x_{i}")
+            P.append(p_val)
+            x_load.append(x_val)
 
-st.sidebar.header("Material")
+    st.subheader("2. Distributed Load (UDL)")
+    enable_udl = st.toggle("Enable Distributed Load (UDL)", value=False)
+    
+    if enable_udl:
+        if "Pounds" in force_unit:
+            w_mag_lb = st.number_input("Intensity w (lbs/in)", min_value=1.0, value=500.0, step=50.0)
+            w_magnitude = w_mag_lb / 1000.0
+        else:
+            w_magnitude = st.number_input("Intensity w (kips/in)", min_value=0.001, value=0.5, step=0.1)
 
-material = st.sidebar.selectbox(
-    "Material",
-    ["A36 Steel", "Aluminum 6061-T6", "Douglas Fir", "Custom"]
-)
-
-if material == "A36 Steel":
-    E = 200000.0
-    strength = 250.0
-elif material == "Aluminum 6061-T6":
-    E = 68900.0
-    strength = 276.0
-elif material == "Douglas Fir":
-    E = 12000.0
-    strength = 40.0
-else:
-    E = st.sidebar.number_input(
-        "Young's modulus E (MPa)", min_value=1.0, value=100000.0
-    )
-    strength = st.sidebar.number_input(
-        "Reference strength (MPa)", min_value=1.0, value=200.0
-    )
-
-fos = st.sidebar.number_input(
-    "Factor of safety", min_value=0.10, value=1.50, step=0.10
-)
-
-# ---------------------------------------------------------
-# INPUT TABS
-# ---------------------------------------------------------
-tab_input, tab_results, tab_theory, tab_guide = st.tabs(
-    ["Input", "Results", "Theory", "User Guide"]
-)
-
-point_loads = []
-udls = []
-
-with tab_input:
-    st.subheader("Load Input")
-
-    if load_mode == "Upload CSV":
-        st.write(
-            "Upload a CSV with columns: `type`, `magnitude`, `start`, `end`."
-        )
-        st.write(
-            "For a point load, use type `point`, magnitude in kN, "
-            "and put the location in `start`. The `end` value may be blank."
-        )
-        st.write(
-            "For a UDL, use type `udl`, magnitude in kN/m, "
-            "with start and end positions in meters."
-        )
-
-        sample = pd.DataFrame(
-            {
-                "type": ["point", "point", "udl"],
-                "magnitude": [10.0, 15.0, 5.0],
-                "start": [2.0, 4.0, 1.0],
-                "end": [np.nan, np.nan, 3.0],
-            }
-        )
-
-        st.download_button(
-            "Download sample CSV",
-            data=sample.to_csv(index=False).encode("utf-8"),
-            file_name="beam_loads_sample.csv",
-            mime="text/csv",
-        )
-
-        uploaded = st.file_uploader("Upload load CSV", type=["csv"])
-
-        if uploaded is not None:
-            try:
-                df = pd.read_csv(uploaded)
-                required = {"type", "magnitude", "start", "end"}
-
-                if not required.issubset(set(df.columns)):
-                    st.error(
-                        "CSV must include columns: type, magnitude, start, end."
-                    )
-                else:
-                    st.dataframe(df, use_container_width=True)
-
-                    for _, row in df.iterrows():
-                        kind = str(row["type"]).strip().lower()
-                        magnitude = float(row["magnitude"])
-                        start = float(row["start"])
-
-                        if kind == "point":
-                            point_loads.append((magnitude, start))
-
-                        elif kind == "udl":
-                            end = float(row["end"])
-                            udls.append((magnitude, start, end))
-
-            except Exception as exc:
-                st.error(f"Could not read CSV: {exc}")
-
+        col_u1, col_u2 = st.columns(2)
+        with col_u1:
+            x_start = st.number_input("Start x1 (in)", min_value=0.0, max_value=float(L), value=0.0)
+        with col_u2:
+            x_end = st.number_input("End x2 (in)", min_value=0.0, max_value=float(L), value=float(L))
     else:
-        if load_type in ["Point Loads", "Combined Loads"]:
-            st.markdown("### Point Loads")
+        w_magnitude = 0.0
+        x_start, x_end = 0.0, 0.0
 
-            n_point = st.number_input(
-                "Number of point loads",
-                min_value=0,
-                max_value=10,
-                value=2,
-                step=1
-            )
+    st.subheader("3. Cross-Section & Dimensions (Inches)")
+    section_shape = st.selectbox("Cross-Section Shape", ["Rectangular (Solid)", "Hollow Box / Tube", "I-Shape / Wide Flange"])
+    
+    if section_shape == "Rectangular (Solid)":
+        b = st.slider("Width b (in)", min_value=1.0, max_value=24.0, value=8.0, step=0.5)
+        h = st.slider("Total Height h (in)", min_value=1.0, max_value=36.0, value=16.0, step=0.5)
+        I = b * (h**3) / 12.0
+        S = I / (h / 2.0)
+        A_web = b * h  # Dùng cho diện tích cắt xấp xỉ
+        
+    elif section_shape == "Hollow Box / Tube":
+        b = st.slider("Outer Width b (in)", min_value=2.0, max_value=24.0, value=8.0, step=0.5)
+        h = st.slider("Outer Height h (in)", min_value=2.0, max_value=36.0, value=16.0, step=0.5)
+        t_wall = st.slider("Wall Thickness t (in)", min_value=0.1, max_value=3.0, value=0.5, step=0.1)
+        b_in = max(0.1, b - 2 * t_wall)
+        h_in = max(0.1, h - 2 * t_wall)
+        I = (b * (h**3) - b_in * (h_in**3)) / 12.0
+        S = I / (h / 2.0)
+        A_web = 2 * t_wall * h  # Diện tích 2 bản bụng
+        
+    else: # I-Shape
+        b = st.slider("Flange Width b (in)", min_value=2.0, max_value=24.0, value=8.0, step=0.5)
+        h = st.slider("Total Height h (in)", min_value=2.0, max_value=36.0, value=16.0, step=0.5)
+        t_web = st.slider("Web Thickness t_web (in)", min_value=0.1, max_value=2.0, value=0.4, step=0.1)
+        t_flange = st.slider("Flange Thickness t_flange (in)", min_value=0.1, max_value=2.0, value=0.6, step=0.1)
+        h_web = max(0.1, h - 2 * t_flange)
+        I = (t_web * (h_web**3) / 12.0) + 2 * (b * (t_flange**3) / 12.0 + b * t_flange * ((h - t_flange)/2.0)**2)
+        S = I / (h / 2.0)
+        A_web = t_web * h_web  # Diện tích bản bụng chịu cắt chính
 
-            for i in range(int(n_point)):
-                col1, col2 = st.columns(2)
+    # ================= 2D CROSS-SECTION PROFILE VIEW =================
+    st.markdown("---")
+    st.subheader("📐 2D Cross-Section Preview")
+    
+    fig_2d = go.Figure()
+    if section_shape == "Rectangular (Solid)":
+        x_rect = [-b/2, b/2, b/2, -b/2, -b/2]
+        y_rect = [-h/2, -h/2, h/2, h/2, -h/2]
+        fig_2d.add_trace(go.Scatter(x=x_rect, y=y_rect, fill="toself", fillcolor="#37474F", line=dict(color="black", width=2)))
+    elif section_shape == "Hollow Box / Tube":
+        fig_2d.add_trace(go.Scatter(x=[-b/2, b/2, b/2, -b/2, -b/2], y=[-h/2, -h/2, h/2, h/2, -h/2], fill="toself", fillcolor="#37474F", line=dict(color="black", width=2), name="Outer"))
+        fig_2d.add_trace(go.Scatter(x=[-b_in/2, b_in/2, b_in/2, -b_in/2, -b_in/2], y=[-h_in/2, -h_in/2, h_in/2, h_in/2, -h_in/2], fill="toself", fillcolor="white", line=dict(color="gray", width=2), name="Inner"))
+    else: # I-Shape
+        x_pts = [-b/2, b/2, b/2, t_web/2, t_web/2, b/2, b/2, -b/2, -b/2, -t_web/2, -t_web/2, -b/2, -b/2]
+        y_pts = [-h/2, -h/2, -h/2 + t_flange, -h/2 + t_flange, h/2 - t_flange, h/2 - t_flange, h/2, h/2, h/2 - t_flange, h/2 - t_flange, -h/2 + t_flange, -h/2 + t_flange, -h/2]
+        fig_2d.add_trace(go.Scatter(x=x_pts, y=y_pts, fill="toself", fillcolor="#37474F", line=dict(color="black", width=2)))
 
-                with col1:
-                    p = st.number_input(
-                        f"Point load {i + 1} magnitude (kN)",
-                        min_value=0.0,
-                        value=10.0 if i == 0 else 15.0,
-                        step=0.5,
-                        key=f"point_mag_{i}"
-                    )
+    fig_2d.update_layout(
+        xaxis=dict(title="Width b (in)", range=[-max(b, 4)*0.7, max(b, 4)*0.7]),
+        yaxis=dict(title="Height h (in)", range=[-max(h, 4)*0.7, max(h, 4)*0.7], scaleanchor="x", scaleratio=1),
+        margin=dict(l=0, r=0, b=0, t=10),
+        height=220,
+        showlegend=False
+    )
+    st.plotly_chart(fig_2d, use_container_width=True)
 
-                with col2:
-                    default_x = 2.0 if i == 0 else min(4.0, float(L))
-                    xp = st.number_input(
-                        f"Point load {i + 1} location (m)",
-                        min_value=0.0,
-                        max_value=float(L),
-                        value=min(default_x, float(L)),
-                        step=0.1,
-                        key=f"point_x_{i}"
-                    )
+    st.subheader("4. Material Properties (ksi)")
+    material_category = st.selectbox("Material Category", ["Steel & Metals", "Wood & Timber", "Custom"])
+    
+    if material_category == "Steel & Metals":
+        material_choice = st.selectbox("Select Steel Grade", ["A36 Steel (Fy = 36 ksi)", "A992 Steel (Fy = 50 ksi)", "Aluminum 6061-T6 (Fy = 35 ksi)"])
+        if "A36" in material_choice:
+            mat_name, yield_strength, E_modulus = "A36 Steel", 36.0, 29000.0
+        elif "A992" in material_choice:
+            mat_name, yield_strength, E_modulus = "A992 Steel", 50.0, 29000.0
+        else:
+            mat_name, yield_strength, E_modulus = "Aluminum 6061-T6", 35.0, 10000.0
+            
+    elif material_category == "Wood & Timber":
+        material_choice = st.selectbox("Select Wood Grade", [
+            "Douglas Fir-Larch No.1 (Fb = 1.5 ksi)",
+            "Southern Pine No.1 (Fb = 1.7 ksi)",
+            "Hem-Fir No.1/No.2 (Fb = 1.2 ksi)"
+        ])
+        if "Douglas Fir" in material_choice:
+            mat_name, yield_strength, E_modulus = "Douglas Fir-Larch No.1", 1.5, 1600.0
+        elif "Southern Pine" in material_choice:
+            mat_name, yield_strength, E_modulus = "Southern Pine No.1", 1.7, 1800.0
+        else:
+            mat_name, yield_strength, E_modulus = "Hem-Fir No.1/No.2", 1.2, 1400.0
+    else:
+        mat_name = st.text_input("Custom Material Name", value="Custom")
+        yield_strength = st.number_input("Allowable Stress (ksi)", value=20.0)
+        E_modulus = st.number_input("E Modulus (ksi)", value=29000.0)
+        
+    factor_of_safety = st.number_input("Factor of Safety (FOS)", min_value=0.1, value=1.5, step=0.1)
 
-                point_loads.append((p, xp))
+# ================= MATERIAL THEME =================
+if material_category == "Steel & Metals":
+    beam_color = "#37474F"
+    theme_name = "Steel Structure"
+elif material_category == "Wood & Timber":
+    beam_color = "#8D6E63"
+    theme_name = "Timber Structure"
+else:
+    beam_color = "#7E57C2"
+    theme_name = "Custom Material"
 
-        if load_type in ["Uniform Distributed Load", "Combined Loads"]:
-            st.markdown("### Uniform Distributed Loads")
+# ================= CALCULATIONS =================
+if enable_udl and x_end > x_start:
+    udl_length = x_end - x_start
+    udl_total_force = w_magnitude * udl_length
+    udl_center = x_start + udl_length / 2.0
+else:
+    udl_total_force = 0.0
+    udl_center = 0.0
+    udl_length = 0.0
 
-            n_udl = st.number_input(
-                "Number of distributed loads",
-                min_value=0,
-                max_value=5,
-                value=1,
-                step=1
-            )
+sum_moments_A = sum(p * x for p, x in zip(P, x_load)) + (udl_total_force * udl_center if enable_udl else 0.0)
+RB = sum_moments_A / L if L > 0 else 0.0
+total_downward = sum(P) + (udl_total_force if enable_udl else 0.0)
+RA = total_downward - RB
 
-            for i in range(int(n_udl)):
-                col1, col2, col3 = st.columns(3)
+x = np.linspace(0, L, 1000)
+V = np.full_like(x, RA)
+M = RA * x
 
-                with col1:
-                    w = st.number_input(
-                        f"UDL {i + 1} intensity (kN/m)",
-                        min_value=0.0,
-                        value=5.0,
-                        step=0.5,
-                        key=f"udl_w_{i}"
-                    )
+for load, loc in zip(P, x_load):
+    active = x >= loc
+    V[active] -= load
+    M[active] -= load * (x[active] - loc)
 
-                with col2:
-                    a = st.number_input(
-                        f"UDL {i + 1} start (m)",
-                        min_value=0.0,
-                        max_value=float(L),
-                        value=1.0 if L >= 1 else 0.0,
-                        step=0.1,
-                        key=f"udl_a_{i}"
-                    )
+if enable_udl and udl_length > 0:
+    for idx, xi in enumerate(x):
+        if xi > x_start:
+            effective_len = min(xi, x_end) - x_start
+            if effective_len > 0:
+                V[idx] -= w_magnitude * effective_len
+                lever_arm = xi - (x_start + effective_len / 2.0)
+                M[idx] -= w_magnitude * effective_len * lever_arm
 
-                with col3:
-                    default_end = min(float(L), 3.0)
-                    b_end = st.number_input(
-                        f"UDL {i + 1} end (m)",
-                        min_value=0.0,
-                        max_value=float(L),
-                        value=default_end,
-                        step=0.1,
-                        key=f"udl_b_{i}"
-                    )
+max_v = np.max(np.abs(V)) if len(V) > 0 else 0.0
+max_m = np.max(np.abs(M)) if len(M) > 0 else 0.0
+max_m_kipft = max_m / 12.0
+max_m_loc = x[np.argmax(np.abs(M))] if len(M) > 0 else 0.0
 
-                udls.append((w, a, b_end))
+# Tính độ võng xấp xỉ bằng phương pháp tích phân số đơn giản cho dầm đơn giản
+# (Giả lập độ cong v''(x) = M(x) / (E * I))
+dx = L / 999.0
+EI = E_modulus * I
+if EI > 0:
+    # Tích phân kép Moment để tính độ võng v(x)
+    curvature = M / EI
+    theta = np.cumsum(curvature) * dx
+    # Điều kiện biên: độ võng bằng 0 tại x = 0 và x = L
+    theta -= theta[-1] * (x / L) # Hiệu chỉnh góc xoay
+    v_deflection = np.cumsum(theta) * dx
+    v_deflection -= v_deflection[0] * (1 - x/L) + v_deflection[-1] * (x/L)
+    max_deflection = np.max(np.abs(v_deflection))
+else:
+    v_deflection = np.zeros_like(x)
+    max_deflection = 0.0
 
-    st.info(
-        "After entering the loads, open the Results tab and click Analyze Beam."
+sigma_max = max_m / S if S > 0 else 0.0
+tau_max = max_v / A_web if A_web > 0 else 0.0
+sigma_allow = yield_strength / factor_of_safety if factor_of_safety > 0 else 1.0
+tau_allow = (0.577 * yield_strength) / factor_of_safety # Tiêu chuẩn von Mises cho ứng suất cắt cho phép
+utilization_ratio = sigma_max / sigma_allow
+
+# Summary Metrics Display
+if "Pounds" in force_unit:
+    m1_val, m1_lbl = RA * 1000.0, "Reaction R_A (lbs)"
+    m2_val, m2_lbl = RB * 1000.0, "Reaction R_B (lbs)"
+    m3_val, m3_lbl = max_v * 1000.0, "Max Shear V (lbs)"
+    fmt_str = "{:,.1f} lbs"
+else:
+    m1_val, m1_lbl = RA, "Reaction R_A (kips)"
+    m2_val, m2_lbl = RB, "Reaction R_B (kips)"
+    m3_val, m3_lbl = max_v, "Max Shear V (kips)"
+    fmt_str = "{:.2f} kips"
+
+m1, m2, m3, m4 = st.columns(4)
+m1.metric(m1_lbl, fmt_str.format(m1_val))
+m2.metric(m2_lbl, fmt_str.format(m2_val))
+m3.metric(m3_lbl, fmt_str.format(m3_val))
+m4.metric("Max Deflection", f"{max_deflection:.4f} in", delta=f"Limit: L/360 = {L/360:.2f} in")
+
+st.divider()
+
+# ================= 1. 2D PLOTS (BEAM SCHEMATIC, SFD, BMD & DEFLECTION) =================
+fig = make_subplots(
+    rows=4, cols=1, 
+    shared_xaxes=True,
+    vertical_spacing=0.06,
+    subplot_titles=(
+        f"1. Beam Schematic ({theme_name}) & Active Loads", 
+        f"2. Shear Force Diagram (SFD)", 
+        f"3. Bending Moment Diagram (BMD) - Max: {max_m_kipft:.2f} kip-ft",
+        f"4. Deflection Curve (Elastic Line) - Max: {max_deflection:.4f} in"
+    )
+)
+
+# 1. Beam Schematic
+fig.add_trace(go.Scatter(
+    x=[0, L], y=[0, 0], mode='lines+markers', 
+    line=dict(color=beam_color, width=8), 
+    marker=dict(size=10, color=beam_color),
+    showlegend=False
+), row=1, col=1)
+
+fig.add_trace(go.Scatter(x=[0], y=[-0.3], mode='markers', marker=dict(symbol='triangle-up', size=18, color='#D32F2F'), showlegend=False), row=1, col=1)
+fig.add_trace(go.Scatter(x=[L], y=[-0.3], mode='markers', marker=dict(symbol='triangle-up', size=18, color='#D32F2F'), showlegend=False), row=1, col=1)
+
+for i, (p_val, x_val) in enumerate(zip(P, x_load)):
+    p_label_text = f"P{i+1}={p_val*1000:.0f} lbs" if "Pounds" in force_unit else f"P{i+1}={p_val} kips"
+    fig.add_annotation(
+        x=x_val, y=0, ax=x_val, ay=1.0,
+        xref='x1', yref='y1', axref='x1', ayref='y1',
+        text=p_label_text, showarrow=True,
+        arrowhead=2, arrowsize=1.2, arrowwidth=2.5, arrowcolor='darkblue',
+        font=dict(color='darkblue', size=11, family="Arial Black")
     )
 
-# ---------------------------------------------------------
-# ANALYSIS FUNCTION
-# ---------------------------------------------------------
-def analyze_beam(length, points, distributed):
-    errors = []
-
-    if length <= 0:
-        errors.append("Beam length must be positive.")
-
-    clean_points = []
-    for p, xp in points:
-        if p < 0:
-            errors.append("Point-load magnitudes cannot be negative.")
-        elif xp < 0 or xp > length:
-            errors.append("Point-load locations must be on the beam.")
-        else:
-            clean_points.append((float(p), float(xp)))
-
-    clean_udls = []
-    for w, a, b_end in distributed:
-        if w < 0:
-            errors.append("UDL intensities cannot be negative.")
-        elif a < 0 or b_end > length or b_end <= a:
-            errors.append("Each UDL must satisfy 0 ≤ start < end ≤ L.")
-        else:
-            clean_udls.append((float(w), float(a), float(b_end)))
-
-    if errors:
-        return None, errors
-
-    total_load = sum(p for p, _ in clean_points)
-    moment_about_a = sum(p * xp for p, xp in clean_points)
-
-    for w, a, b_end in clean_udls:
-        resultant = w * (b_end - a)
-        centroid = (a + b_end) / 2.0
-        total_load += resultant
-        moment_about_a += resultant * centroid
-
-    RB = moment_about_a / length
-    RA = total_load - RB
-
-    x = np.linspace(0.0, length, 3001)
-    V = np.full_like(x, RA, dtype=float)
-    M = RA * x
-
-    for p, xp in clean_points:
-        mask = x >= xp
-        V[mask] -= p
-        M[mask] -= p * (x[mask] - xp)
-
-    for w, a, b_end in clean_udls:
-        inside = (x >= a) & (x <= b_end)
-        after = x > b_end
-
-        V[inside] -= w * (x[inside] - a)
-        M[inside] -= 0.5 * w * (x[inside] - a) ** 2
-
-        resultant = w * (b_end - a)
-        centroid = (a + b_end) / 2.0
-
-        V[after] -= resultant
-        M[after] -= resultant * (x[after] - centroid)
-
-    force_error = abs(RA + RB - total_load)
-    moment_error = abs(RB * length - moment_about_a)
-
-    max_shear = float(np.max(np.abs(V)))
-    max_moment_index = int(np.argmax(np.abs(M)))
-    max_moment = float(abs(M[max_moment_index]))
-    max_moment_x = float(x[max_moment_index])
-
-    return {
-        "RA": RA,
-        "RB": RB,
-        "total_load": total_load,
-        "x": x,
-        "V": V,
-        "M": M,
-        "max_shear": max_shear,
-        "max_moment": max_moment,
-        "max_moment_x": max_moment_x,
-        "force_error": force_error,
-        "moment_error": moment_error,
-        "points": clean_points,
-        "udls": clean_udls,
-    }, []
-
-# ---------------------------------------------------------
-# RESULTS TAB
-# ---------------------------------------------------------
-with tab_results:
-    st.subheader("Beam Analysis Results")
-
-    if st.button("Analyze Beam", type="primary"):
-        result, errors = analyze_beam(L, point_loads, udls)
-
-        if errors:
-            for error in errors:
-                st.error(error)
-
-        elif not np.isfinite(I) or not np.isfinite(S):
-            st.error("Cross-section dimensions are invalid.")
-
-        else:
-            RA = result["RA"]
-            RB = result["RB"]
-            max_moment = result["max_moment"]
-
-            sigma_max = max_moment * 1e6 / S
-            allowable_stress = strength / fos
-            utilization = sigma_max / allowable_stress
-            material_pass = utilization <= 1.0
-
-            st.markdown("### Support Reactions")
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Reaction at A", f"{RA:.3f} kN")
-            c2.metric("Reaction at B", f"{RB:.3f} kN")
-            c3.metric("Total applied load", f"{result['total_load']:.3f} kN")
-
-            st.markdown("### Internal Force Results")
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Maximum shear", f"{result['max_shear']:.3f} kN")
-            c2.metric("Maximum moment", f"{max_moment:.3f} kN·m")
-            c3.metric(
-                "Location of maximum moment",
-                f"{result['max_moment_x']:.3f} m"
-            )
-
-            st.markdown("### Equilibrium Check")
-            st.write(
-                f"Vertical-force error: {result['force_error']:.3e} kN"
-            )
-            st.write(
-                f"Moment error about A: {result['moment_error']:.3e} kN·m"
-            )
-
-            if (
-                result["force_error"] < 1e-8
-                and result["moment_error"] < 1e-8
-            ):
-                st.success("Equilibrium verification: PASS")
-            else:
-                st.error("Equilibrium verification: FAIL")
-
-            st.markdown("### Material Check")
-            st.write(f"Material: {material}")
-            st.write(f"Young's modulus: {E:.0f} MPa")
-            st.write(f"Reference strength: {strength:.3f} MPa")
-            st.write(f"Moment of inertia: {I:.3e} mm⁴")
-            st.write(f"Section modulus: {S:.3e} mm³")
-            st.write(f"Maximum bending stress: {sigma_max:.3f} MPa")
-            st.write(f"Allowable stress: {allowable_stress:.3f} MPa")
-            st.write(f"Utilization ratio: {utilization:.3f}")
-
-            if material_pass:
-                st.success("Material check: PASS")
-            else:
-                st.error("Material check: DOES NOT PASS")
-
-            st.markdown("### Free-Body Diagram")
-
-            fig_fbd, ax_fbd = plt.subplots(figsize=(11, 3.5))
-            ax_fbd.plot([0, L], [0, 0], linewidth=5)
-            ax_fbd.plot(0, 0, marker="^", markersize=12)
-            ax_fbd.plot(
-                L, 0, marker="^", markersize=12, markerfacecolor="white"
-            )
-
-            vertical_scale = max(
-                [p for p, _ in result["points"]]
-                + [w for w, _, _ in result["udls"]]
-                + [1.0]
-            )
-
-            for p, xp in result["points"]:
-                ax_fbd.annotate(
-                    "",
-                    xy=(xp, 0.03 * vertical_scale),
-                    xytext=(xp, 0.55 * vertical_scale),
-                    arrowprops={"arrowstyle": "->", "linewidth": 2}
-                )
-                ax_fbd.text(
-                    xp,
-                    0.62 * vertical_scale,
-                    f"{p:.1f} kN",
-                    ha="center"
-                )
-
-            for w, a, b_end in result["udls"]:
-                xs = np.linspace(a, b_end, 9)
-                for xi in xs:
-                    ax_fbd.annotate(
-                        "",
-                        xy=(xi, 0.03 * vertical_scale),
-                        xytext=(xi, 0.35 * vertical_scale),
-                        arrowprops={"arrowstyle": "->", "linewidth": 1}
-                    )
-                ax_fbd.plot(
-                    [a, b_end],
-                    [0.35 * vertical_scale, 0.35 * vertical_scale],
-                    linewidth=2
-                )
-                ax_fbd.text(
-                    (a + b_end) / 2,
-                    0.43 * vertical_scale,
-                    f"{w:.1f} kN/m",
-                    ha="center"
-                )
-
-            ax_fbd.annotate(
-                "",
-                xy=(0, 0.0),
-                xytext=(0, -0.45 * vertical_scale),
-                arrowprops={"arrowstyle": "->", "linewidth": 2}
-            )
-            ax_fbd.annotate(
-                "",
-                xy=(L, 0.0),
-                xytext=(L, -0.45 * vertical_scale),
-                arrowprops={"arrowstyle": "->", "linewidth": 2}
-            )
-
-            ax_fbd.text(
-                0, -0.58 * vertical_scale, f"RA = {RA:.2f} kN", ha="left"
-            )
-            ax_fbd.text(
-                L, -0.58 * vertical_scale, f"RB = {RB:.2f} kN", ha="right"
-            )
-
-            ax_fbd.set_xlim(-0.05 * L, 1.05 * L)
-            ax_fbd.set_ylim(
-                -0.75 * vertical_scale,
-                0.85 * vertical_scale
-            )
-            ax_fbd.set_xlabel("Position along beam (m)")
-            ax_fbd.set_yticks([])
-            ax_fbd.grid(True)
-            st.pyplot(fig_fbd)
-            plt.close(fig_fbd)
-
-            st.markdown("### Shear-Force Diagram")
-            fig_v, ax_v = plt.subplots(figsize=(11, 4))
-            ax_v.plot(result["x"], result["V"], linewidth=2)
-            ax_v.fill_between(
-                result["x"], 0, result["V"], alpha=0.2
-            )
-            ax_v.axhline(0, linewidth=1)
-            ax_v.set_xlim(0, L)
-            ax_v.set_xlabel("Position along beam (m)")
-            ax_v.set_ylabel("Shear force (kN)")
-            ax_v.grid(True)
-            st.pyplot(fig_v)
-            plt.close(fig_v)
-
-            st.markdown("### Bending-Moment Diagram")
-            fig_m, ax_m = plt.subplots(figsize=(11, 4))
-            ax_m.plot(result["x"], result["M"], linewidth=2)
-            ax_m.fill_between(
-                result["x"], 0, result["M"], alpha=0.2
-            )
-            ax_m.axhline(0, linewidth=1)
-            ax_m.plot(
-                result["max_moment_x"],
-                result["M"][np.argmax(np.abs(result["M"]))],
-                marker="o"
-            )
-            ax_m.set_xlim(0, L)
-            ax_m.set_xlabel("Position along beam (m)")
-            ax_m.set_ylabel("Bending moment (kN·m)")
-            ax_m.grid(True)
-            st.pyplot(fig_m)
-            plt.close(fig_m)
-
-            output_df = pd.DataFrame(
-                {
-                    "x_m": result["x"],
-                    "shear_kN": result["V"],
-                    "moment_kNm": result["M"],
-                }
-            )
-
-            st.download_button(
-                "Download analysis results CSV",
-                data=output_df.to_csv(index=False).encode("utf-8"),
-                file_name="beam_analysis_results.csv",
-                mime="text/csv"
-            )
-
-# ---------------------------------------------------------
-# THEORY TAB
-# ---------------------------------------------------------
-with tab_theory:
-    st.subheader("Theoretical Background")
-
-    st.markdown(
-        r"""
-For a simply supported beam, the support reactions are found from static
-equilibrium:
-
-\[
-\sum F_y = 0
-\]
-
-\[
-\sum M_A = 0
-\]
-
-For a rectangular cross section:
-
-\[
-I = \frac{bh^3}{12}
-\]
-
-\[
-S = \frac{I}{c}
-\]
-
-The maximum bending stress is estimated by:
-
-\[
-\sigma_{\max} = \frac{M_{\max}}{S}
-\]
-
-The allowable stress is:
-
-\[
-\sigma_{\text{allow}} =
-\frac{\text{material strength}}{\text{factor of safety}}
-\]
-
-The simplified material check passes when:
-
-\[
-\sigma_{\max} \leq \sigma_{\text{allow}}
-\]
-"""
+if enable_udl and udl_length > 0:
+    fig.add_trace(go.Scatter(
+        x=[x_start, x_end], y=[0.3, 0.3], mode='lines',
+        line=dict(color='#FF8F00', width=6),
+        name='UDL', showlegend=False
+    ), row=1, col=1)
+    
+    w_label_text = f"w = {w_magnitude*1000:.1f} lbs/in" if "Pounds" in force_unit else f"w = {w_magnitude} kips/in"
+    fig.add_annotation(
+        x=(x_start + x_end)/2, y=0.5,
+        text=w_label_text,
+        showarrow=False,
+        font=dict(color='#E65100', size=12, family="Arial Black")
     )
 
-    st.warning(
-        "This educational application does not perform a complete structural "
-        "design. It does not check detailed shear strength, buckling, fatigue, "
-        "connections, lateral stability, code requirements, or serviceability."
+# 2. Shear Force Diagram
+V_plot = V * 1000.0 if "Pounds" in force_unit else V
+v_unit_label = "Shear V (lbs)" if "Pounds" in force_unit else "Shear V (kips)"
+fig.add_trace(go.Scatter(
+    x=x, y=V_plot, mode='lines', fill='tozeroy', 
+    line=dict(color='#1E88E5', width=2), name='Shear',
+    hovertemplate='Position x: %{x:.1f} in<br>Shear V: %{y:.2f}<extra></extra>'
+), row=2, col=1)
+
+# 3. Bending Moment Diagram
+fig.add_trace(go.Scatter(
+    x=x, y=M/12.0, mode='lines', fill='tozeroy', 
+    line=dict(color='#E53935', width=2), name='Moment',
+    hovertemplate='Position x: %{x:.1f} in<br>Moment M: %{y:.2f} kip-ft<extra></extra>'
+), row=3, col=1)
+
+# 4. Deflection Curve
+fig.add_trace(go.Scatter(
+    x=x, y=v_deflection, mode='lines', fill='tozeroy',
+    line=dict(color='#43A047', width=2), name='Deflection',
+    hovertemplate='Position x: %{x:.1f} in<br>Deflection: %{y:.4f} in<extra></extra>'
+), row=4, col=1)
+
+for x_val in x_load:
+    for r in [1, 2, 3, 4]:
+        fig.add_vline(x=x_val, line_width=1, line_dash="dash", line_color="gray", opacity=0.7, row=r, col=1)
+
+fig.update_layout(height=860, showlegend=False, hovermode="x unified", template="plotly_white")
+fig.update_yaxes(visible=False, row=1, col=1)
+fig.update_yaxes(title_text=v_unit_label, row=2, col=1)
+fig.update_yaxes(title_text="Moment (kip-ft)", row=3, col=1)
+fig.update_yaxes(title_text="Deflection (in)", row=4, col=1)
+fig.update_xaxes(title_text="Beam Position x (in)", row=4, col=1)
+
+st.plotly_chart(fig, use_container_width=True)
+
+st.divider()
+
+# ================= 2. SAFETY CHECK & PROPERTIES =================
+st.subheader("🛡️ Safety Check & Properties")
+col_st1, col_st2, col_st3 = st.columns(3)
+
+with col_st1:
+    if utilization_ratio <= 1.0:
+        st.success(f"### PASS ✅\n**Bending Utilization:** {utilization_ratio:.1%}")
+    else:
+        st.error(f"### FAIL ❌\n**Bending Utilization:** {utilization_ratio:.1%}")
+
+with col_st2:
+    st.write(f"- **Selected Material:** `{mat_name}` ({theme_name})")
+    st.write(f"- **Section Shape:** `{section_shape}`")
+    st.write(f"- **Moment of Inertia I:** `{I:,.1f} in^4`")
+
+with col_st3:
+    st.write(
+        f"- **Max Bending Stress ($\\sigma_{{max}}$):** "
+        f"`{sigma_max:.2f} ksi` (Allowable: `{sigma_allow:.2f} ksi`)"
     )
-
-# ---------------------------------------------------------
-# GUIDE TAB
-# ---------------------------------------------------------
-with tab_guide:
-    st.subheader("How to Use the Application")
-
-    st.markdown(
-        """
-1. Enter the beam length in the sidebar.
-2. Select manual input or CSV upload.
-3. Choose point loads, distributed loads, or combined loads.
-4. Enter the cross-section dimensions.
-5. Select a material and factor of safety.
-6. Open the Results tab.
-7. Click **Analyze Beam**.
-8. Review reactions, equilibrium, material check, free-body diagram,
-   shear-force diagram, and bending-moment diagram.
-9. Download the numerical results as a CSV file when needed.
-"""
+    st.write(
+        f"- **Max Shear Stress ($\\tau_{{max}}$):** "
+        f"`{tau_max:.3f} ksi` (Allowable: `{tau_allow:.2f} ksi`)"
+    )
+    st.write(
+        f"- **Max Deflection:** `{max_deflection:.4f} in` "
+        f"(Limit L/360: `{L/360:.2f} in`)"
     )
