@@ -490,7 +490,4 @@ with col_b:
             f"{max_deflection:.4f} in > {deflection_limit:.4f} in"
         )
 
-st.caption(
-    "Educational model: simply supported beam, downward point loads, "
-    "rectangular cross section, and linear-elastic behavior."
-)
+
