@@ -34,6 +34,42 @@
 #    st.error("FAIL")
 
 # Display the shear, moment, and deflection diagrams
+#st.plotly_chart(fig_results, use_container_width=True)# Import libraries for the web app, calculations, and diagrams
+#import streamlit as st
+#import numpy as np
+#import plotly.graph_objects as go
+
+# Get beam length and point-load inputs from the user
+#L_ft = st.number_input("Beam Length L (ft)", value=16.0)
+#n_loads = st.number_input("Number of Point Loads", value=2)
+
+# Convert beam length from feet to inches
+#L = L_ft * 12.0
+
+# Calculate support reactions using equilibrium equations
+#RB = moment_about_A / L
+#RA = total_load - RB
+
+# Calculate shear force and bending moment along the beam
+#x = np.linspace(0, L, 1000)
+#V = np.full_like(x, RA)
+#M = RA * x
+
+# Calculate section properties and bending stress
+#I = b * h**3 / 12.0
+#S = I / (h / 2.0)
+#sigma_max = max_m / S
+
+# Compare the actual stress with the allowable stress
+#utilization_ratio = sigma_max / sigma_allow
+
+# Display a PASS or FAIL result
+#if utilization_ratio <= 1.0:
+   # st.success("PASS")
+#else:
+#    st.error("FAIL")
+
+# Display the shear, moment, and deflection diagrams
 #st.plotly_chart(fig_results, use_container_width=True)
 import streamlit as st
 import numpy as np
@@ -767,6 +803,203 @@ fig_results.update_xaxes(title_text="Beam Position x (in)", row=3, col=1)
 st.plotly_chart(fig_results, use_container_width=True)
 
 st.divider()
+
+
+# ================= STEP-BY-STEP CALCULATIONS =================
+
+st.divider()
+st.subheader("🧮 Step-by-Step Calculations")
+
+with st.expander("Show Detailed Calculations", expanded=False):
+
+    # Step 1: Given information
+    st.markdown("### Step 1: Given Information")
+
+    st.write(f"Beam Length, L = {L / 12.0:.2f} ft")
+    st.write(f"Beam Length, L = {L:.2f} in")
+
+    for i, (load, location) in enumerate(zip(all_P, all_x)):
+        st.write(
+            f"Load P{i + 1} = {load:.2f} kips "
+            f"at x{i + 1} = {location / 12.0:.2f} ft from A"
+        )
+
+    if enable_udl and udl_length > 0:
+        st.write(
+            f"Distributed Load, w = {w_magnitude:.3f} kips/in "
+            f"from {x_start:.2f} in to {x_end:.2f} in"
+        )
+
+    st.write(f"Section Shape = {section_shape}")
+    st.write(f"Material = {mat_name}")
+    st.write(f"Factor of Safety = {factor_of_safety:.2f}")
+
+    # Step 2: Total applied load
+    st.markdown("### Step 2: Total Applied Load")
+
+    total_point_load = sum(all_P)
+
+    st.latex(r"\sum P = P_1 + P_2 + \cdots + P_n")
+    st.write(f"Total Point Load = {total_point_load:.2f} kips")
+
+    if enable_udl and udl_length > 0:
+        st.latex(r"W = wL_{UDL}")
+        st.write(
+            f"Equivalent UDL Force = "
+            f"{w_magnitude:.3f} × {udl_length:.2f} "
+            f"= {udl_total_force:.2f} kips"
+        )
+
+    total_downward_step = total_point_load + udl_total_force
+    st.write(f"Total Downward Load = {total_downward_step:.2f} kips")
+
+    # Step 3: Reaction at support B
+    st.markdown("### Step 3: Reaction at Support B")
+
+    if not is_cantilever and not is_fixed_fixed and not is_propped:
+        st.latex(r"\sum M_A = 0")
+        st.latex(r"R_B L = \sum(P_i x_i) + W x_W")
+        st.latex(r"R_B=\frac{\sum(P_i x_i)+W x_W}{L}")
+
+        point_moment_terms = [
+            f"({load:.2f})({location / 12.0:.2f})"
+            for load, location in zip(all_P, all_x)
+        ]
+
+        moment_expression = " + ".join(point_moment_terms) if point_moment_terms else "0"
+
+        if enable_udl and udl_length > 0:
+            moment_expression += (
+                f" + ({udl_total_force:.2f})"
+                f"({udl_center / 12.0:.2f})"
+            )
+
+        st.write(
+            f"RB × {L / 12.0:.2f} = {moment_expression}"
+        )
+        st.write(f"RB = {RB:.2f} kips")
+    else:
+        st.info(
+            "The reaction equations depend on the selected support configuration. "
+            "The calculated reactions are shown below."
+        )
+        st.write(f"RA = {RA:.2f} kips")
+        st.write(f"RB = {RB:.2f} kips")
+
+    # Step 4: Reaction at support A
+    st.markdown("### Step 4: Reaction at Support A")
+
+    st.latex(r"\sum F_y = 0")
+    st.latex(r"R_A + R_B - \sum P - W = 0")
+    st.latex(r"R_A = \sum P + W - R_B")
+
+    st.write(
+        f"RA = {total_downward_step:.2f} - {RB:.2f}"
+    )
+    st.write(f"RA = {RA:.2f} kips")
+
+    # Step 5: Shear force
+    st.markdown("### Step 5: Shear Force")
+
+    st.latex(r"V(x)=R_A-\sum P_i-wx")
+    st.write(f"Maximum Shear Force = {max_v:.2f} kips")
+
+    # Step 6: Bending moment
+    st.markdown("### Step 6: Bending Moment")
+
+    st.latex(r"M(x)=R_Ax-\sum P_i(x-a_i)-\frac{wx^2}{2}")
+    st.write(f"Maximum Bending Moment = {max_m_kipft:.2f} kip-ft")
+
+    # Step 7: Section properties
+    st.markdown("### Step 7: Section Properties")
+
+    if section_shape == "Rectangular (Solid)":
+        st.latex(r"I=\frac{bh^3}{12}")
+        st.write(
+            f"I = ({b:.2f})({h:.2f})³ / 12 "
+            f"= {I:,.2f} in⁴"
+        )
+
+        st.latex(r"S=\frac{I}{h/2}")
+        st.write(f"S = {S:,.2f} in³")
+    else:
+        st.write(f"Moment of Inertia, I = {I:,.2f} in⁴")
+        st.write(f"Section Modulus, S = {S:,.2f} in³")
+
+    # Step 8: Maximum bending stress
+    st.markdown("### Step 8: Maximum Bending Stress")
+
+    st.latex(r"\sigma_{max}=\frac{M_{max}}{S}")
+    st.write(
+        f"σmax = {max_m:.2f} kip-in / {S:.2f} in³"
+    )
+    st.write(f"Maximum Bending Stress = {sigma_max:.2f} ksi")
+
+    # Step 9: Allowable stress
+    st.markdown("### Step 9: Allowable Stress")
+
+    st.latex(r"\sigma_{allow}=\frac{F_y}{FOS}")
+    st.write(
+        f"σallow = {yield_strength:.2f} / "
+        f"{factor_of_safety:.2f}"
+    )
+    st.write(f"Allowable Stress = {sigma_allow:.2f} ksi")
+
+    # Step 10: Utilization ratio
+    st.markdown("### Step 10: Utilization Ratio")
+
+    st.latex(
+        r"\text{Utilization Ratio}"
+        r"=\frac{\sigma_{max}}{\sigma_{allow}}"
+    )
+
+    st.write(
+        f"Utilization Ratio = "
+        f"{sigma_max:.2f} / {sigma_allow:.2f}"
+    )
+    st.write(f"Utilization Ratio = {utilization_ratio:.3f}")
+    st.write(f"Utilization Percentage = {utilization_ratio:.1%}")
+
+    # Step 11: Bending safety result
+    st.markdown("### Step 11: Bending Safety Result")
+
+    if utilization_ratio <= 1.0:
+        st.success(
+            f"PASS ✅ — {sigma_max:.2f} ksi ≤ "
+            f"{sigma_allow:.2f} ksi"
+        )
+    else:
+        st.error(
+            f"FAIL ❌ — {sigma_max:.2f} ksi > "
+            f"{sigma_allow:.2f} ksi"
+        )
+
+    # Step 12: Deflection check
+    st.markdown("### Step 12: Deflection Check")
+
+    deflection_limit = L / 360.0
+
+    st.latex(r"\delta_{allow}=\frac{L}{360}")
+    st.write(
+        f"Allowable Deflection = {L:.2f} / 360 "
+        f"= {deflection_limit:.4f} in"
+    )
+    st.write(
+        f"Maximum Calculated Deflection = "
+        f"{max_deflection:.4f} in"
+    )
+
+    if max_deflection <= deflection_limit:
+        st.success(
+            f"Deflection PASS ✅ — "
+            f"{max_deflection:.4f} in ≤ {deflection_limit:.4f} in"
+        )
+    else:
+        st.error(
+            f"Deflection FAIL ❌ — "
+            f"{max_deflection:.4f} in > {deflection_limit:.4f} in"
+        )
+
 
 # ================= 2. SAFETY CHECK & PROPERTIES =================
 
