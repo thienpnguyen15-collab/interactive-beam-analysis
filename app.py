@@ -1,3 +1,40 @@
+# Import libraries for the web app, calculations, and diagrams
+#import streamlit as st
+#import numpy as np
+#import plotly.graph_objects as go
+
+# Get beam length and point-load inputs from the user
+#L_ft = st.number_input("Beam Length L (ft)", value=16.0)
+#n_loads = st.number_input("Number of Point Loads", value=2)
+
+# Convert beam length from feet to inches
+#L = L_ft * 12.0
+
+# Calculate support reactions using equilibrium equations
+#RB = moment_about_A / L
+#RA = total_load - RB
+
+# Calculate shear force and bending moment along the beam
+#x = np.linspace(0, L, 1000)
+#V = np.full_like(x, RA)
+#M = RA * x
+
+# Calculate section properties and bending stress
+#I = b * h**3 / 12.0
+#S = I / (h / 2.0)
+#sigma_max = max_m / S
+
+# Compare the actual stress with the allowable stress
+#utilization_ratio = sigma_max / sigma_allow
+
+# Display a PASS or FAIL result
+#if utilization_ratio <= 1.0:
+   # st.success("PASS")
+#else:
+#    st.error("FAIL")
+
+# Display the shear, moment, and deflection diagrams
+#st.plotly_chart(fig_results, use_container_width=True)
 import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
@@ -9,7 +46,7 @@ st.set_page_config(page_title="Professional Beam Analysis (2D)", page_icon="🏗
 st.title("🏗️ Interactive Beam Analysis & Reaction Forces")
 st.caption("Beam diagrams with support configurations, reaction forces visualization, moving load simulation, and safety checks")
 
-# ================= SIDEBAR INPUTS (IMPERIAL) =================
+# SIDEBAR INPUTS (IMPERIAL) 
 
 with st.sidebar:
     st.header("⚙️ Beam & Load Parameters (Imperial)")
@@ -53,7 +90,7 @@ with st.sidebar:
             P.append(p_val)
             x_load.append(x_val)
 
-    # ================= MÔ PHỎNG TẢI TRỌNG DI ĐỘNG =================
+    # Demo
     st.subheader("🚗 Moving Load Simulation")
     enable_walker = st.toggle("Enable Moving Load Simulation", value=True)
 
