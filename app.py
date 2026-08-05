@@ -2263,142 +2263,7 @@ st.subheader("🧮 Step-by-Step Calculations")
 
 with st.expander("Show Detailed Calculations", expanded=False):
 
-    # Step 1: Given information
-    st.markdown("### Step 1: Given Information")
-
-    st.write(f"Beam Length, L = {L / 12.0:.2f} ft")
-    st.write(f"Beam Length, L = {L:.2f} in")
-
-    for i, (load, location) in enumerate(zip(P, x_load)):
-        meta = point_load_meta[i]
-
-        direction_text = (
-            meta["direction"]
-            if meta["direction"] != "Angled"
-            else f"Angled at θ = {meta['angle_deg']:.0f}°"
-        )
-
-        st.write(
-            f"Load P{i + 1} [{meta['case']}] = "
-            f"{abs(load):.3f} kip vertical component, "
-            f"{direction_text}, at "
-            f"x{i + 1} = {location / 12.0:.2f} ft from A"
-        )
-
-    if enable_walker:
-        st.write(
-            f"Custom Load [{moving_case}] = "
-            f"{abs(walker_load):.3f} kip vertical component "
-            f"at x = {walker_pos / 12.0:.2f} ft from A"
-        )
-
-    if enable_udl and udl_length > 0:
-        st.write(
-            f"Distributed Load, w = "
-            f"{udl_display_intensity:.3f} {udl_display_unit} "
-            f"from {x_start_display:.2f} {udl_position_unit} "
-            f"to {x_end_display:.2f} {udl_position_unit}"
-        )
-
-    st.write(f"Section Shape = {section_shape}")
-    st.write(f"Material = {mat_name}")
-    st.write(f"Factor of Safety = {factor_of_safety:.2f}")
-
-    # Step 2: Total applied load
-    st.markdown("### Step 2: Total Applied Load")
-
-    total_point_load = sum(all_P)
-
-    st.latex(r"\sum P = P_1 + P_2 + \cdots + P_n")
-    st.write(f"Total Point Load = {total_point_load:.2f} kips")
-
-    if enable_udl and udl_length > 0:
-        st.latex(r"W = wL_{UDL}")
-        st.write(
-            f"Equivalent UDL Force = "
-            f"{udl_display_intensity:.3f} {udl_display_unit} × "
-            f"{(x_end_display - x_start_display):.2f} "
-            f"{udl_position_unit} "
-            f"= {udl_total_force:.2f} kips"
-        )
-
-    total_downward_step = total_point_load + udl_total_force
-    st.write(f"Total Downward Load = {total_downward_step:.2f} kips")
-
-    if enable_moment:
-        displayed_step_moment = (
-            moment_magnitude_kipin / 12.0
-            if st.session_state.display_moment_unit == "kip-ft"
-            else moment_magnitude_kipin
-        )
-
-        st.write(
-            f"Applied Moment = {displayed_step_moment:.2f} "
-            f"{st.session_state.display_moment_unit} "
-            f"({moment_direction})"
-        )
-
-    # Step 3: Reaction at support B
-    st.markdown("### Step 3: Reaction at Support B")
-
-    if not is_cantilever and not is_fixed_fixed and not is_propped:
-        st.latex(r"\sum M_A = 0")
-        st.latex(r"R_B L = \sum(P_i x_i) + W x_W")
-        st.latex(r"R_B=\frac{\sum(P_i x_i)+W x_W}{L}")
-
-        point_moment_terms = [
-            f"({load:.2f})({location / 12.0:.2f})"
-            for load, location in zip(all_P, all_x)
-        ]
-
-        moment_expression = " + ".join(point_moment_terms) if point_moment_terms else "0"
-
-        if enable_udl and udl_length > 0:
-            moment_expression += (
-                f" + ({udl_total_force:.2f})"
-                f"({udl_center / 12.0:.2f})"
-            )
-
-        st.write(
-            f"RB × {L / 12.0:.2f} = {moment_expression}"
-        )
-        st.write(f"RB = {RB:.2f} kips")
-    else:
-        st.info(
-            "The reaction equations depend on the selected support configuration. "
-            "The calculated reactions are shown below."
-        )
-        st.write(f"RA = {RA:.2f} kips")
-        st.write(f"RB = {RB:.2f} kips")
-
-    # Step 4: Reaction at support A
-    st.markdown("### Step 4: Reaction at Support A")
-
-    st.latex(r"\sum F_y = 0")
-    st.latex(r"R_A + R_B - \sum P - W = 0")
-    st.latex(r"R_A = \sum P + W - R_B")
-
-    st.write(
-        f"RA = {total_downward_step:.2f} - {RB:.2f}"
-    )
-    st.write(f"RA = {RA:.2f} kips")
-
-    # Step 5: Shear force
-    st.markdown("### Step 5: Shear Force")
-
-    st.latex(r"V(x)=R_A-\sum P_i-wx")
-    st.write(f"Maximum Shear Force = {max_v:.2f} kips")
-
-    # Step 6: Bending moment
-    st.markdown("### Step 6: Bending Moment")
-
-    st.latex(
-        r"M(x)=R_Ax-\sum P_i(x-a_i)"
-        r"-\frac{w(x-x_1)^2}{2}"
-    )
-
-    # Show a cleaner closed-form substitution when the load case matches
-    # a standard benchmark problem.
+    # Standard benchmark flags used to show the clearest formula.
     full_span_udl = (
         enable_udl
         and abs(x_start) < 1e-9
@@ -2412,6 +2277,246 @@ with st.expander("Show Detailed Calculations", expanded=False):
         and not enable_udl
         and not enable_moment
         and abs(all_x[0] - L / 2.0) < max(1e-6, L / 1000.0)
+    )
+
+    # Step 1: Given information
+    st.markdown("### Step 1: Given Information")
+
+    st.latex(
+        rf"L={L / 12.0:.2f}\ \text{{ft}}"
+        rf"={L:.2f}\ \text{{in}}"
+    )
+
+    for i, (load, location) in enumerate(zip(P, x_load)):
+        meta = point_load_meta[i]
+
+        if meta["direction"] == "Angled":
+            st.latex(
+                rf"P_{{{i + 1}}}="
+                rf"{meta['input_magnitude_kip']:.3f}\ \text{{kip}},"
+                rf"\quad \theta={meta['angle_deg']:.1f}^\circ"
+            )
+            st.latex(
+                rf"P_{{{i + 1},y}}="
+                rf"{abs(load):.3f}\ \text{{kip}}"
+            )
+        else:
+            direction_symbol = (
+                r"\downarrow"
+                if load >= 0
+                else r"\uparrow"
+            )
+            st.latex(
+                rf"P_{{{i + 1}}}="
+                rf"{abs(load):.3f}\ \text{{kip}}\ {direction_symbol},"
+                rf"\quad x_{{{i + 1}}}="
+                rf"{location / 12.0:.2f}\ \text{{ft}}"
+            )
+
+        st.caption(
+            f"Load case: {meta['case']}"
+        )
+
+    if enable_walker:
+        custom_direction_symbol = (
+            r"\downarrow"
+            if walker_load >= 0
+            else r"\uparrow"
+        )
+        st.latex(
+            rf"P_{{custom}}="
+            rf"{abs(walker_load):.3f}\ \text{{kip}}\ "
+            rf"{custom_direction_symbol},"
+            rf"\quad x="
+            rf"{walker_pos / 12.0:.2f}\ \text{{ft}}"
+        )
+        st.caption(f"Custom load case: {moving_case}")
+
+    if enable_udl and udl_length > 0:
+        st.latex(
+            rf"w={udl_display_intensity:.3f}\ "
+            rf"\text{{{udl_display_unit}}},"
+            rf"\quad x_1={x_start_display:.2f}\ "
+            rf"\text{{{udl_position_unit}}},"
+            rf"\quad x_2={x_end_display:.2f}\ "
+            rf"\text{{{udl_position_unit}}}"
+        )
+
+    st.write(f"**Section Shape = {section_shape}**")
+    st.write(f"**Material = {mat_name}**")
+    st.write(f"**Factor of Safety = {factor_of_safety:.2f}**")
+
+    # Step 2: Total applied load
+    st.markdown("### Step 2: Total Applied Load")
+
+    total_point_load = sum(all_P)
+
+    st.latex(r"\sum P=P_1+P_2+\cdots+P_n")
+
+    if len(all_P) > 0:
+        point_sum_expression = "+".join(
+            f"{load:.3f}"
+            for load in all_P
+        )
+        st.latex(
+            rf"\sum P={point_sum_expression}"
+            rf"={total_point_load:.3f}\ \text{{kips}}"
+        )
+    else:
+        st.latex(r"\sum P=0.000\ \text{kips}")
+
+    if enable_udl and udl_length > 0:
+        udl_display_length = x_end_display - x_start_display
+
+        st.latex(r"W=wL_{UDL}")
+        st.latex(
+            rf"W="
+            rf"({udl_display_intensity:.3f})"
+            rf"({udl_display_length:.2f})"
+            rf"={udl_total_force:.3f}\ \text{{kips}}"
+        )
+
+        st.latex(
+            rf"x_W=\frac{{x_1+x_2}}{{2}}"
+            rf"=\frac{{{x_start_display:.2f}+"
+            rf"{x_end_display:.2f}}}{{2}}"
+            rf"={udl_center / 12.0:.2f}\ \text{{ft}}"
+        )
+    else:
+        st.latex(r"W=0.000\ \text{kips}")
+
+    total_downward_step = total_point_load + udl_total_force
+
+    st.latex(
+        rf"P_{{total}}=\sum P+W"
+        rf"={total_point_load:.3f}+{udl_total_force:.3f}"
+        rf"={total_downward_step:.3f}\ \text{{kips}}"
+    )
+
+    if enable_moment:
+        displayed_step_moment = (
+            moment_magnitude_kipin / 12.0
+            if st.session_state.display_moment_unit == "kip-ft"
+            else moment_magnitude_kipin
+        )
+
+        st.latex(
+            rf"M_0={displayed_step_moment:.3f}\ "
+            rf"\text{{{st.session_state.display_moment_unit}}}"
+        )
+        st.caption(f"Applied moment direction: {moment_direction}")
+
+    # Step 3: Reaction at support B
+    st.markdown("### Step 3: Reaction at Support B")
+
+    if not is_cantilever and not is_fixed_fixed and not is_propped:
+        st.latex(r"\sum M_A=0")
+
+        st.latex(
+            r"R_BL="
+            r"\sum(P_ix_i)+Wx_W"
+        )
+
+        st.latex(
+            r"R_B="
+            r"\frac{\sum(P_ix_i)+Wx_W}{L}"
+        )
+
+        moment_terms = [
+            f"({load:.3f})({location / 12.0:.2f})"
+            for load, location in zip(all_P, all_x)
+        ]
+
+        if enable_udl and udl_length > 0:
+            moment_terms.append(
+                f"({udl_total_force:.3f})"
+                f"({udl_center / 12.0:.2f})"
+            )
+
+        numerator_expression = "+".join(moment_terms) if moment_terms else "0"
+
+        st.latex(
+            rf"R_B="
+            rf"\frac{{{numerator_expression}}}"
+            rf"{{{L / 12.0:.2f}}}"
+            rf"={RB:.3f}\ \text{{kips}}"
+        )
+    else:
+        st.info(
+            "For this support condition, reactions are obtained from "
+            "the selected structural-analysis model."
+        )
+        st.latex(
+            rf"R_A={RA:.3f}\ \text{{kips}},"
+            rf"\qquad R_B={RB:.3f}\ \text{{kips}}"
+        )
+
+    # Step 4: Reaction at support A
+    st.markdown("### Step 4: Reaction at Support A")
+
+    if not is_cantilever and not is_fixed_fixed and not is_propped:
+        st.latex(r"\sum F_y=0")
+        st.latex(
+            r"R_A+R_B-\sum P-W=0"
+        )
+        st.latex(
+            r"R_A=\sum P+W-R_B"
+        )
+        st.latex(
+            rf"R_A="
+            rf"{total_point_load:.3f}+"
+            rf"{udl_total_force:.3f}-"
+            rf"{RB:.3f}"
+            rf"={RA:.3f}\ \text{{kips}}"
+        )
+    else:
+        st.latex(
+            rf"R_A={RA:.3f}\ \text{{kips}}"
+        )
+
+    # Step 5: Shear force
+    st.markdown("### Step 5: Shear Force")
+
+    st.latex(
+        r"V(x)=R_A"
+        r"-\sum_{a_i\leq x}P_i"
+        r"-w(x-x_1)"
+    )
+
+    if full_span_udl:
+        w_kip_per_ft = w_magnitude * 12.0
+        L_ft = L / 12.0
+
+        st.latex(r"|V|_{\max}=\frac{wL}{2}")
+        st.latex(
+            rf"|V|_{{\max}}="
+            rf"\frac{{({w_kip_per_ft:.3f})"
+            rf"({L_ft:.2f})}}{{2}}"
+            rf"={max_v:.3f}\ \text{{kips}}"
+        )
+
+    elif center_point_load:
+        point_load = abs(all_P[0])
+
+        st.latex(r"|V|_{\max}=\frac{P}{2}")
+        st.latex(
+            rf"|V|_{{\max}}="
+            rf"\frac{{{point_load:.3f}}}{{2}}"
+            rf"={max_v:.3f}\ \text{{kips}}"
+        )
+
+    else:
+        st.latex(
+            rf"|V|_{{\max}}="
+            rf"{max_v:.3f}\ \text{{kips}}"
+        )
+
+    # Step 6: Bending moment
+    st.markdown("### Step 6: Bending Moment")
+
+    st.latex(
+        r"M(x)=R_Ax-\sum P_i(x-a_i)"
+        r"-\frac{w(x-x_1)^2}{2}"
     )
 
     if full_span_udl:
