@@ -639,441 +639,59 @@ with st.sidebar:
         w_magnitude = 0.0
         x_start, x_end = 0.0, 0.0
 
-    # ================= SECTION INPUT MODE =================
-    st.subheader("4. Section Input")
+    # ================= SECTION PROPERTIES =================
+    st.subheader("4. Section Properties")
 
-    section_input_mode = st.radio(
-        "Choose a section setup:",
-        [
-            "Material & Shape",
-            "Section Properties"
-        ],
-        index=0,
-        horizontal=True,
-        help=(
-            "Material & Shape lets you choose dimensions and material directly. "
-            "Section Properties lets you enter Iz and E directly."
-        )
+    st.session_state.custom_Iz = st.number_input(
+        "Moment of Inertia, Iz (in⁴)",
+        min_value=0.01,
+        value=float(st.session_state.custom_Iz),
+        step=10.0
     )
 
-    # -----------------------------------------------------
-    # MATERIAL & SHAPE
-    # -----------------------------------------------------
-    if section_input_mode == "Material & Shape":
-        st.subheader("Cross-Section & Dimensions (Inches)")
+    st.session_state.custom_E = st.number_input(
+        "Young's Modulus, E (ksi)",
+        min_value=1.0,
+        value=float(st.session_state.custom_E),
+        step=100.0
+    )
 
-        section_shape = st.selectbox(
-            "Cross-Section Shape",
-            [
-                "Rectangular (Solid)",
-                "Hollow Box / Tube",
-                "I-Shape / Wide Flange"
-            ]
-        )
+    st.caption(
+        "Enter Iz and E directly for a quick beam analysis."
+    )
 
-        if section_shape == "Rectangular (Solid)":
-            b = st.slider(
-                "Width b (in)",
-                min_value=1.0,
-                max_value=24.0,
-                value=8.0,
-                step=0.5
-            )
+    if st.button(
+        "📐 Launch Section Builder",
+        type="primary",
+        use_container_width=True,
+        key="section_builder_only_button"
+    ):
+        open_section_builder()
 
-            h = st.slider(
-                "Total Height h (in)",
-                min_value=1.0,
-                max_value=36.0,
-                value=16.0,
-                step=0.5
-            )
+    st.caption(
+        "Use Section Builder to create a custom section and choose "
+        "its shape, dimensions, material, strength, section modulus, "
+        "shear area, and factor of safety."
+    )
 
-            I = b * h**3 / 12.0
-            S = I / (h / 2.0)
-            A_web = b * h
+    # Values used by all downstream calculations.
+    section_shape = st.session_state.selected_section_name
+    I = float(st.session_state.custom_Iz)
+    E_modulus = float(st.session_state.custom_E)
 
-        elif section_shape == "Hollow Box / Tube":
-            b = st.slider(
-                "Outer Width b (in)",
-                min_value=2.0,
-                max_value=24.0,
-                value=8.0,
-                step=0.5
-            )
+    # Advanced values are stored and edited inside Section Builder.
+    S = float(st.session_state.custom_S)
+    A_web = float(st.session_state.custom_A_web)
+    mat_name = st.session_state.custom_material_name
+    yield_strength = float(
+        st.session_state.custom_yield_strength
+    )
+    factor_of_safety = float(
+        st.session_state.custom_factor_of_safety
+    )
 
-            h = st.slider(
-                "Outer Height h (in)",
-                min_value=2.0,
-                max_value=36.0,
-                value=16.0,
-                step=0.5
-            )
-
-            t_wall = st.slider(
-                "Wall Thickness t (in)",
-                min_value=0.1,
-                max_value=3.0,
-                value=0.5,
-                step=0.1
-            )
-
-            b_in = max(0.1, b - 2.0 * t_wall)
-            h_in = max(0.1, h - 2.0 * t_wall)
-
-            I = (
-                b * h**3
-                - b_in * h_in**3
-            ) / 12.0
-
-            S = I / (h / 2.0)
-            A_web = 2.0 * t_wall * h
-
-        else:
-            b = st.slider(
-                "Flange Width b (in)",
-                min_value=2.0,
-                max_value=24.0,
-                value=8.0,
-                step=0.5
-            )
-
-            h = st.slider(
-                "Total Height h (in)",
-                min_value=2.0,
-                max_value=36.0,
-                value=16.0,
-                step=0.5
-            )
-
-            t_web = st.slider(
-                "Web Thickness t_web (in)",
-                min_value=0.1,
-                max_value=2.0,
-                value=0.4,
-                step=0.1
-            )
-
-            t_flange = st.slider(
-                "Flange Thickness t_flange (in)",
-                min_value=0.1,
-                max_value=2.0,
-                value=0.6,
-                step=0.1
-            )
-
-            h_web = max(0.1, h - 2.0 * t_flange)
-
-            I = (
-                t_web * h_web**3 / 12.0
-                + 2.0 * (
-                    b * t_flange**3 / 12.0
-                    + b
-                    * t_flange
-                    * ((h - t_flange) / 2.0) ** 2
-                )
-            )
-
-            S = I / (h / 2.0)
-            A_web = t_web * h_web
-
-        # 2D preview
-        st.markdown("---")
-        st.subheader("📐 2D Cross-Section Preview")
-
-        fig_2d = go.Figure()
-
-        if section_shape == "Rectangular (Solid)":
-            x_rect = [
-                -b / 2.0,
-                b / 2.0,
-                b / 2.0,
-                -b / 2.0,
-                -b / 2.0
-            ]
-
-            y_rect = [
-                -h / 2.0,
-                -h / 2.0,
-                h / 2.0,
-                h / 2.0,
-                -h / 2.0
-            ]
-
-            fig_2d.add_trace(
-                go.Scatter(
-                    x=x_rect,
-                    y=y_rect,
-                    fill="toself",
-                    fillcolor="#37474F",
-                    line=dict(color="black", width=2)
-                )
-            )
-
-        elif section_shape == "Hollow Box / Tube":
-            fig_2d.add_trace(
-                go.Scatter(
-                    x=[
-                        -b / 2.0,
-                        b / 2.0,
-                        b / 2.0,
-                        -b / 2.0,
-                        -b / 2.0
-                    ],
-                    y=[
-                        -h / 2.0,
-                        -h / 2.0,
-                        h / 2.0,
-                        h / 2.0,
-                        -h / 2.0
-                    ],
-                    fill="toself",
-                    fillcolor="#37474F",
-                    line=dict(color="black", width=2)
-                )
-            )
-
-            fig_2d.add_trace(
-                go.Scatter(
-                    x=[
-                        -b_in / 2.0,
-                        b_in / 2.0,
-                        b_in / 2.0,
-                        -b_in / 2.0,
-                        -b_in / 2.0
-                    ],
-                    y=[
-                        -h_in / 2.0,
-                        -h_in / 2.0,
-                        h_in / 2.0,
-                        h_in / 2.0,
-                        -h_in / 2.0
-                    ],
-                    fill="toself",
-                    fillcolor="white",
-                    line=dict(color="gray", width=2)
-                )
-            )
-
-        else:
-            x_pts = [
-                -b / 2.0,
-                b / 2.0,
-                b / 2.0,
-                t_web / 2.0,
-                t_web / 2.0,
-                b / 2.0,
-                b / 2.0,
-                -b / 2.0,
-                -b / 2.0,
-                -t_web / 2.0,
-                -t_web / 2.0,
-                -b / 2.0,
-                -b / 2.0
-            ]
-
-            y_pts = [
-                -h / 2.0,
-                -h / 2.0,
-                -h / 2.0 + t_flange,
-                -h / 2.0 + t_flange,
-                h / 2.0 - t_flange,
-                h / 2.0 - t_flange,
-                h / 2.0,
-                h / 2.0,
-                h / 2.0 - t_flange,
-                h / 2.0 - t_flange,
-                -h / 2.0 + t_flange,
-                -h / 2.0 + t_flange,
-                -h / 2.0
-            ]
-
-            fig_2d.add_trace(
-                go.Scatter(
-                    x=x_pts,
-                    y=y_pts,
-                    fill="toself",
-                    fillcolor="#37474F",
-                    line=dict(color="black", width=2)
-                )
-            )
-
-        fig_2d.update_layout(
-            xaxis=dict(
-                title="Width (in)",
-                range=[
-                    -max(b, 4.0) * 0.7,
-                    max(b, 4.0) * 0.7
-                ]
-            ),
-            yaxis=dict(
-                title="Height (in)",
-                range=[
-                    -max(h, 4.0) * 0.7,
-                    max(h, 4.0) * 0.7
-                ],
-                scaleanchor="x",
-                scaleratio=1
-            ),
-            margin=dict(l=0, r=0, b=0, t=10),
-            height=220,
-            showlegend=False
-        )
-
-        st.plotly_chart(
-            fig_2d,
-            use_container_width=True
-        )
-
-        # Material properties
-        st.subheader("Material Properties (ksi)")
-
-        material_category = st.selectbox(
-            "Material Category",
-            [
-                "Steel & Metals",
-                "Wood & Timber",
-                "Custom"
-            ]
-        )
-
-        if material_category == "Steel & Metals":
-            material_choice = st.selectbox(
-                "Select Material",
-                [
-                    "A36 Steel (Fy = 36 ksi)",
-                    "A992 Steel (Fy = 50 ksi)",
-                    "Aluminum 6061-T6 (Fy = 35 ksi)"
-                ]
-            )
-
-            if "A36" in material_choice:
-                mat_name = "A36 Steel"
-                yield_strength = 36.0
-                E_modulus = 29000.0
-            elif "A992" in material_choice:
-                mat_name = "A992 Steel"
-                yield_strength = 50.0
-                E_modulus = 29000.0
-            else:
-                mat_name = "Aluminum 6061-T6"
-                yield_strength = 35.0
-                E_modulus = 10000.0
-
-        elif material_category == "Wood & Timber":
-            material_choice = st.selectbox(
-                "Select Wood Grade",
-                [
-                    "Douglas Fir-Larch No.1 (Fb = 1.5 ksi)",
-                    "Southern Pine No.1 (Fb = 1.7 ksi)",
-                    "Hem-Fir No.1/No.2 (Fb = 1.2 ksi)"
-                ]
-            )
-
-            if "Douglas Fir" in material_choice:
-                mat_name = "Douglas Fir-Larch No.1"
-                yield_strength = 1.5
-                E_modulus = 1600.0
-            elif "Southern Pine" in material_choice:
-                mat_name = "Southern Pine No.1"
-                yield_strength = 1.7
-                E_modulus = 1800.0
-            else:
-                mat_name = "Hem-Fir No.1/No.2"
-                yield_strength = 1.2
-                E_modulus = 1400.0
-
-        else:
-            mat_name = st.text_input(
-                "Custom Material Name",
-                value="Custom"
-            )
-
-            yield_strength = st.number_input(
-                "Yield / Allowable Strength (ksi)",
-                min_value=0.01,
-                value=20.0
-            )
-
-            E_modulus = st.number_input(
-                "E Modulus (ksi)",
-                min_value=1.0,
-                value=29000.0
-            )
-
-        factor_of_safety = st.number_input(
-            "Factor of Safety (FOS)",
-            min_value=0.1,
-            value=1.5,
-            step=0.1
-        )
-
-        if material_category == "Steel & Metals":
-            beam_color = "#37474F"
-            theme_name = "Steel Structure"
-        elif material_category == "Wood & Timber":
-            beam_color = "#8D6E63"
-            theme_name = "Timber Structure"
-        else:
-            beam_color = "#7E57C2"
-            theme_name = "Custom Material"
-
-    # -----------------------------------------------------
-    # SECTION PROPERTIES
-    # -----------------------------------------------------
-    else:
-        st.subheader("Section Properties")
-
-        st.session_state.custom_Iz = st.number_input(
-            "Moment of Inertia, Iz (in⁴)",
-            min_value=0.01,
-            value=float(st.session_state.custom_Iz),
-            step=10.0
-        )
-
-        st.session_state.custom_E = st.number_input(
-            "Young's Modulus, E (ksi)",
-            min_value=1.0,
-            value=float(st.session_state.custom_E),
-            step=100.0
-        )
-
-        st.caption(
-            "Enter Iz and E directly for a quick beam analysis."
-        )
-
-        st.markdown("---")
-
-        if st.button(
-            "📐 Launch Section Builder",
-            type="primary",
-            use_container_width=True,
-            key="direct_section_builder_button"
-        ):
-            open_section_builder()
-
-        st.caption(
-            "Open Section Builder to select a section, material, strength, "
-            "section modulus, shear area, and factor of safety."
-        )
-
-        # Values used by the calculations.
-        section_shape = st.session_state.selected_section_name
-        I = float(st.session_state.custom_Iz)
-        E_modulus = float(st.session_state.custom_E)
-
-        # Advanced values are managed inside Section Builder.
-        S = float(st.session_state.custom_S)
-        A_web = float(st.session_state.custom_A_web)
-        mat_name = st.session_state.custom_material_name
-        yield_strength = float(
-            st.session_state.custom_yield_strength
-        )
-        factor_of_safety = float(
-            st.session_state.custom_factor_of_safety
-        )
-
-        beam_color = "#455A64"
-        theme_name = "Direct Properties"
+    beam_color = "#455A64"
+    theme_name = "Custom Section"
 
 
 # ================= INPUT VALIDATION =================
