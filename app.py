@@ -258,7 +258,7 @@ def open_section_builder():
         )
 
     with properties_tab:
-        st.subheader("Section Properties")
+        st.subheader("Section and Material Properties")
 
         prop_col1, prop_col2 = st.columns(2)
 
@@ -640,85 +640,26 @@ with st.sidebar:
         x_start, x_end = 0.0, 0.0
 
     # ================= SECTION INPUT MODE =================
-    st.subheader("4. Section Input Mode")
+    st.subheader("4. Section Input")
 
     section_input_mode = st.radio(
-        "Choose how to enter the cross-section:",
+        "Choose a section setup:",
         [
-            "Option 1 — SkyCiv Style",
-            "Option 2 — Sidebar Layout"
+            "Material & Shape",
+            "Section Properties"
         ],
-        index=1,
+        index=0,
+        horizontal=True,
         help=(
-            "SkyCiv Style uses the Section Builder dialog. "
-            "Sidebar Layout shows all section and material controls directly."
+            "Material & Shape lets you choose dimensions and material directly. "
+            "Section Properties lets you enter Iz and E directly."
         )
     )
 
     # -----------------------------------------------------
-    # OPTION 1: SKYCIV-STYLE DIALOG INPUT
+    # MATERIAL & SHAPE
     # -----------------------------------------------------
-    if section_input_mode == "Option 1 — SkyCiv Style":
-        st.markdown("#### Section Builder")
-
-        if st.button(
-            "📐 Launch Section Builder",
-            type="primary",
-            use_container_width=True,
-            key="section_mode_dialog_button"
-        ):
-            open_section_builder()
-
-        st.info(
-            "Use the dialog to select a section shape and enter advanced "
-            "section and material properties."
-        )
-
-        st.write(
-            f"**Selected Section:** "
-            f"{st.session_state.selected_section_name}"
-        )
-        st.write(
-            f"**Material:** "
-            f"{st.session_state.custom_material_name}"
-        )
-        st.write(
-            f"**Iz:** {st.session_state.custom_Iz:,.2f} in⁴"
-        )
-        st.write(
-            f"**S:** {st.session_state.custom_S:,.2f} in³"
-        )
-        st.write(
-            f"**Effective Shear Area:** "
-            f"{st.session_state.custom_A_web:,.2f} in²"
-        )
-        st.write(
-            f"**E:** {st.session_state.custom_E:,.2f} ksi"
-        )
-
-        # Variables used by all downstream calculations.
-        section_shape = st.session_state.selected_section_name
-        I = float(st.session_state.custom_Iz)
-        S = float(st.session_state.custom_S)
-        A_web = float(st.session_state.custom_A_web)
-
-        mat_name = st.session_state.custom_material_name
-        yield_strength = float(
-            st.session_state.custom_yield_strength
-        )
-        E_modulus = float(st.session_state.custom_E)
-        factor_of_safety = float(
-            st.session_state.custom_factor_of_safety
-        )
-
-        # Use a neutral color for library/custom sections.
-        beam_color = "#455A64"
-        theme_name = "Section Builder"
-
-    # -----------------------------------------------------
-    # OPTION 2: DIRECT SIDEBAR INPUT
-    # -----------------------------------------------------
-    else:
+    if section_input_mode == "Material & Shape":
         st.subheader("Cross-Section & Dimensions (Inches)")
 
         section_shape = st.selectbox(
@@ -835,7 +776,7 @@ with st.sidebar:
             S = I / (h / 2.0)
             A_web = t_web * h_web
 
-        # ================= 2D CROSS-SECTION PREVIEW =================
+        # 2D preview
         st.markdown("---")
         st.subheader("📐 2D Cross-Section Preview")
 
@@ -864,10 +805,7 @@ with st.sidebar:
                     y=y_rect,
                     fill="toself",
                     fillcolor="#37474F",
-                    line=dict(
-                        color="black",
-                        width=2
-                    )
+                    line=dict(color="black", width=2)
                 )
             )
 
@@ -890,11 +828,7 @@ with st.sidebar:
                     ],
                     fill="toself",
                     fillcolor="#37474F",
-                    line=dict(
-                        color="black",
-                        width=2
-                    ),
-                    name="Outer"
+                    line=dict(color="black", width=2)
                 )
             )
 
@@ -916,11 +850,7 @@ with st.sidebar:
                     ],
                     fill="toself",
                     fillcolor="white",
-                    line=dict(
-                        color="gray",
-                        width=2
-                    ),
-                    name="Inner"
+                    line=dict(color="gray", width=2)
                 )
             )
 
@@ -963,10 +893,7 @@ with st.sidebar:
                     y=y_pts,
                     fill="toself",
                     fillcolor="#37474F",
-                    line=dict(
-                        color="black",
-                        width=2
-                    )
+                    line=dict(color="black", width=2)
                 )
             )
 
@@ -987,12 +914,7 @@ with st.sidebar:
                 scaleanchor="x",
                 scaleratio=1
             ),
-            margin=dict(
-                l=0,
-                r=0,
-                b=0,
-                t=10
-            ),
+            margin=dict(l=0, r=0, b=0, t=10),
             height=220,
             showlegend=False
         )
@@ -1002,7 +924,7 @@ with st.sidebar:
             use_container_width=True
         )
 
-        # ================= MATERIAL PROPERTIES =================
+        # Material properties
         st.subheader("Material Properties (ksi)")
 
         material_category = st.selectbox(
@@ -1094,6 +1016,64 @@ with st.sidebar:
         else:
             beam_color = "#7E57C2"
             theme_name = "Custom Material"
+
+    # -----------------------------------------------------
+    # SECTION PROPERTIES
+    # -----------------------------------------------------
+    else:
+        st.subheader("Section Properties")
+
+        st.session_state.custom_Iz = st.number_input(
+            "Moment of Inertia, Iz (in⁴)",
+            min_value=0.01,
+            value=float(st.session_state.custom_Iz),
+            step=10.0
+        )
+
+        st.session_state.custom_E = st.number_input(
+            "Young's Modulus, E (ksi)",
+            min_value=1.0,
+            value=float(st.session_state.custom_E),
+            step=100.0
+        )
+
+        st.caption(
+            "Enter Iz and E directly for a quick beam analysis."
+        )
+
+        st.markdown("---")
+
+        if st.button(
+            "📐 Launch Section Builder",
+            type="primary",
+            use_container_width=True,
+            key="direct_section_builder_button"
+        ):
+            open_section_builder()
+
+        st.caption(
+            "Open Section Builder to select a section, material, strength, "
+            "section modulus, shear area, and factor of safety."
+        )
+
+        # Values used by the calculations.
+        section_shape = st.session_state.selected_section_name
+        I = float(st.session_state.custom_Iz)
+        E_modulus = float(st.session_state.custom_E)
+
+        # Advanced values are managed inside Section Builder.
+        S = float(st.session_state.custom_S)
+        A_web = float(st.session_state.custom_A_web)
+        mat_name = st.session_state.custom_material_name
+        yield_strength = float(
+            st.session_state.custom_yield_strength
+        )
+        factor_of_safety = float(
+            st.session_state.custom_factor_of_safety
+        )
+
+        beam_color = "#455A64"
+        theme_name = "Direct Properties"
 
 
 # ================= INPUT VALIDATION =================
