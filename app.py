@@ -608,84 +608,21 @@ def open_section_builder():
 
 # ================= MAIN HEADER =================
 
-header_col1, header_col2, header_col3 = st.columns([5, 1, 1])
-
-with header_col1:
-    st.title("🏗️ Interactive Beam Analysis & Reaction Forces")
-
-with header_col2:
-    if st.button("⚙️ Settings", use_container_width=True):
-        open_settings()
-
-with header_col3:
-    if st.button("📐 Section", use_container_width=True):
-        open_section_builder()
-
-st.markdown("""
-This educational application helps students study how beams respond to loads.
-It calculates support reactions, shear force, bending moment, stress, and deflection,
-then displays the results using interactive diagrams.
-""")
-
-with st.expander("❓ Help, Instructions, and FAQ", expanded=False):
-    help_tab1, help_tab2, help_tab3 = st.tabs(
-        ["How to Use", "Beam Basics", "FAQ & Contact"]
-    )
-
-    with help_tab1:
-        st.markdown("""
-        1. Select the beam length and force units.
-        2. Choose the support conditions.
-        3. Add point loads, a moving load, or a distributed load.
-        4. Select the cross section and material.
-        5. Review the beam diagram, FBD, shear, moment, and deflection results.
-        6. Open **Step-by-Step Calculations** to see the main equations.
-        """)
-
-        st.info(
-            "Recommended first example: 16-ft beam, pinned support at A, "
-            "roller support at B, two 5-kip loads at 4 ft and 8 ft, "
-            "8 in × 16 in rectangular section, A36 steel, and FOS = 1.5."
-        )
-
-    with help_tab2:
-        st.markdown("""
-        - **Reaction Force:** Force created by a support.
-        - **Shear Force:** Internal force that tends to slide one beam segment.
-        - **Bending Moment:** Internal effect that causes bending.
-        - **Bending Stress:** Stress caused by the bending moment.
-        - **Deflection:** Vertical movement of the beam.
-        - **Utilization Ratio:** Actual stress divided by allowable stress.
-        """)
-
-    with help_tab3:
-        with st.expander("What does PASS mean?"):
-            st.write("The calculated stress is less than or equal to the allowable stress.")
-
-        with st.expander("What does FAIL mean?"):
-            st.write("The calculated stress is greater than the allowable stress.")
-
-        with st.expander("Why do the diagrams change when a load moves?"):
-            st.write(
-                "Changing the load position changes the reactions, shear force, "
-                "bending moment, stress, and deflection."
-            )
-
-        with st.expander("Can this app replace professional design?"):
-            st.write(
-                "No. This app is for education and simplified beam analysis."
-            )
-
-        st.markdown("**Contact:** Replace this text with your email or class contact information.")
-
-st.caption(
-    "Educational beam-analysis model with interactive diagrams and safety checks."
-)
+st.title("🏗️ Interactive Beam Analysis & Reaction Forces")
 
 # SIDEBAR INPUTS (IMPERIAL) 
 
 with st.sidebar:
-    st.header("⚙️ Beam & Load Parameters (Imperial)")
+    st.header("⚙️ Beam & Load Parameters")
+
+    if st.button(
+        "⚙️ Settings",
+        use_container_width=True,
+        key="sidebar_settings_button"
+    ):
+        open_settings()
+
+    st.markdown("---")
 
     st.markdown("### Active Units")
     st.write(f"System: **{st.session_state.unit_system}**")
