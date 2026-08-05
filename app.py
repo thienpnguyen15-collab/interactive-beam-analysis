@@ -862,7 +862,7 @@ with st.sidebar:
         force_unit = st.session_state.display_force_unit
 
     st.subheader("Support Configurations (Boundary Conditions)")
-    support_options = ["Pinned (Hinged)", "Roller", "Fixed (Ngàm)", "Free (Tự do)"]
+    support_options = ["Pinned (Hinged)", "Roller", "Fixed", "Free"]
 
     col_s1, col_s2 = st.columns(2)
     with col_s1:
