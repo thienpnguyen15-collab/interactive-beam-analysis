@@ -1,76 +1,3 @@
-# Import libraries for the web app, calculations, and diagrams
-#import streamlit as st
-#import numpy as np
-#import plotly.graph_objects as go
-
-# Get beam length and point-load inputs from the user
-#L_ft = st.number_input("Beam Length L (ft)", value=16.0)
-#n_loads = st.number_input("Number of Point Loads", value=2)
-
-# Convert beam length from feet to inches
-#L = L_ft * 12.0
-
-# Calculate support reactions using equilibrium equations
-#RB = moment_about_A / L
-#RA = total_load - RB
-
-# Calculate shear force and bending moment along the beam
-#x = np.linspace(0, L, 1000)
-#V = np.full_like(x, RA)
-#M = RA * x
-
-# Calculate section properties and bending stress
-#I = b * h**3 / 12.0
-#S = I / (h / 2.0)
-#sigma_max = max_m / S
-
-# Compare the actual stress with the allowable stress
-#utilization_ratio = sigma_max / sigma_allow
-
-# Display a PASS or FAIL result
-#if utilization_ratio <= 1.0:
-   # st.success("PASS")
-#else:
-#    st.error("FAIL")
-
-# Display the shear, moment, and deflection diagrams
-#st.plotly_chart(fig_results, use_container_width=True)# Import libraries for the web app, calculations, and diagrams
-#import streamlit as st
-#import numpy as np
-#import plotly.graph_objects as go
-
-# Get beam length and point-load inputs from the user
-#L_ft = st.number_input("Beam Length L (ft)", value=16.0)
-#n_loads = st.number_input("Number of Point Loads", value=2)
-
-# Convert beam length from feet to inches
-#L = L_ft * 12.0
-
-# Calculate support reactions using equilibrium equations
-#RB = moment_about_A / L
-#RA = total_load - RB
-
-# Calculate shear force and bending moment along the beam
-#x = np.linspace(0, L, 1000)
-#V = np.full_like(x, RA)
-#M = RA * x
-
-# Calculate section properties and bending stress
-#I = b * h**3 / 12.0
-#S = I / (h / 2.0)
-#sigma_max = max_m / S
-
-# Compare the actual stress with the allowable stress
-#utilization_ratio = sigma_max / sigma_allow
-
-# Display a PASS or FAIL result
-#if utilization_ratio <= 1.0:
-   # st.success("PASS")
-#else:
-#    st.error("FAIL")
-
-# Display the shear, moment, and deflection diagrams
-#st.plotly_chart(fig_results, use_container_width=True)
 import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
@@ -80,7 +7,67 @@ from plotly.subplots import make_subplots
 st.set_page_config(page_title="Professional Beam Analysis (2D)", page_icon="🏗️", layout="wide")
 
 st.title("🏗️ Interactive Beam Analysis & Reaction Forces")
-st.caption("Beam diagrams with support configurations, reaction forces visualization, moving load simulation, and safety checks")
+
+st.markdown("""
+This educational application helps students study how beams respond to loads.
+It calculates support reactions, shear force, bending moment, stress, and deflection,
+then displays the results using interactive diagrams.
+""")
+
+with st.expander("❓ Help, Instructions, and FAQ", expanded=False):
+    help_tab1, help_tab2, help_tab3 = st.tabs(
+        ["How to Use", "Beam Basics", "FAQ & Contact"]
+    )
+
+    with help_tab1:
+        st.markdown("""
+        1. Select the beam length and force units.
+        2. Choose the support conditions.
+        3. Add point loads, a moving load, or a distributed load.
+        4. Select the cross section and material.
+        5. Review the beam diagram, FBD, shear, moment, and deflection results.
+        6. Open **Step-by-Step Calculations** to see the main equations.
+        """)
+
+        st.info(
+            "Recommended first example: 16-ft beam, pinned support at A, "
+            "roller support at B, two 5-kip loads at 4 ft and 8 ft, "
+            "8 in × 16 in rectangular section, A36 steel, and FOS = 1.5."
+        )
+
+    with help_tab2:
+        st.markdown("""
+        - **Reaction Force:** Force created by a support.
+        - **Shear Force:** Internal force that tends to slide one beam segment.
+        - **Bending Moment:** Internal effect that causes bending.
+        - **Bending Stress:** Stress caused by the bending moment.
+        - **Deflection:** Vertical movement of the beam.
+        - **Utilization Ratio:** Actual stress divided by allowable stress.
+        """)
+
+    with help_tab3:
+        with st.expander("What does PASS mean?"):
+            st.write("The calculated stress is less than or equal to the allowable stress.")
+
+        with st.expander("What does FAIL mean?"):
+            st.write("The calculated stress is greater than the allowable stress.")
+
+        with st.expander("Why do the diagrams change when a load moves?"):
+            st.write(
+                "Changing the load position changes the reactions, shear force, "
+                "bending moment, stress, and deflection."
+            )
+
+        with st.expander("Can this app replace professional design?"):
+            st.write(
+                "No. This app is for education and simplified beam analysis."
+            )
+
+        st.markdown("**Contact:** Replace this text with your email or class contact information.")
+
+st.caption(
+    "Educational beam-analysis model with interactive diagrams and safety checks."
+)
 
 # SIDEBAR INPUTS (IMPERIAL) 
 
@@ -273,6 +260,48 @@ with st.sidebar:
         
     factor_of_safety = st.number_input("Factor of Safety (FOS)", min_value=0.1, value=1.5, step=0.1)
 
+
+# ================= INPUT VALIDATION =================
+
+input_errors = []
+
+if L <= 0:
+    input_errors.append("Beam length must be greater than zero.")
+
+for i, location in enumerate(x_load, start=1):
+    if location < 0 or location > L:
+        input_errors.append(
+            f"Point load P{i} must be located between 0 and the beam length."
+        )
+
+if enable_walker and (walker_pos < 0 or walker_pos > L):
+    input_errors.append("The moving load must be located on the beam.")
+
+if enable_udl:
+    if x_end <= x_start:
+        input_errors.append(
+            "The distributed-load end position must be greater than the start position."
+        )
+    if x_start < 0 or x_end > L:
+        input_errors.append("The distributed load must stay within the beam length.")
+
+if input_errors:
+    for message in input_errors:
+        st.error(message)
+    st.stop()
+
+if is_advanced_support := (
+    "Fixed" in support_A
+    or "Fixed" in support_B
+    or "Free" in support_A
+    or "Free" in support_B
+):
+    st.warning(
+        "Advanced support configurations are included as simplified educational features. "
+        "The pinned–roller case is the recommended validated example."
+    )
+
+
 # ================= MATERIAL THEME =================
 
 if material_category == "Steel & Metals":
@@ -442,6 +471,10 @@ max_v = np.max(np.abs(V)) if len(V) > 0 else 0.0
 max_m = np.max(np.abs(M)) if len(M) > 0 else 0.0
 max_m_kipft = max_m / 12.0
 
+max_m_index = int(np.argmax(np.abs(M))) if len(M) > 0 else 0
+max_m_location_in = float(x[max_m_index]) if len(x) > 0 else 0.0
+max_m_location_ft = max_m_location_in / 12.0
+
 dx = L / 999.0
 EI = E_modulus * I
 if EI > 0:
@@ -486,6 +519,32 @@ m1.metric(m1_lbl, fmt_str.format(m1_val))
 m2.metric(m2_lbl, fmt_str.format(m2_val))
 m3.metric(m3_lbl, fmt_str.format(m3_val))
 m4.metric("Max Deflection", f"{max_deflection:.4f} in", delta=f"Limit: L/360 = {L/360:.2f} in")
+
+st.caption(
+    f"Maximum bending moment occurs at x = {max_m_location_ft:.2f} ft "
+    f"from support A."
+)
+
+summary_csv = (
+    "Result,Value,Unit\n"
+    f"Reaction RA,{RA:.6f},kips\n"
+    f"Reaction RB,{RB:.6f},kips\n"
+    f"Maximum Shear,{max_v:.6f},kips\n"
+    f"Maximum Moment,{max_m_kipft:.6f},kip-ft\n"
+    f"Maximum Moment Location,{max_m_location_ft:.6f},ft\n"
+    f"Maximum Bending Stress,{sigma_max:.6f},ksi\n"
+    f"Allowable Bending Stress,{sigma_allow:.6f},ksi\n"
+    f"Maximum Deflection,{max_deflection:.6f},in\n"
+    f"Deflection Limit,{L/360:.6f},in\n"
+    f"Utilization Ratio,{utilization_ratio:.6f},ratio\n"
+)
+
+st.download_button(
+    "⬇️ Download Result Summary",
+    data=summary_csv,
+    file_name="beam_analysis_results.csv",
+    mime="text/csv"
+)
 
 st.divider()
 
@@ -909,6 +968,9 @@ with st.expander("Show Detailed Calculations", expanded=False):
 
     st.latex(r"M(x)=R_Ax-\sum P_i(x-a_i)-\frac{wx^2}{2}")
     st.write(f"Maximum Bending Moment = {max_m_kipft:.2f} kip-ft")
+    st.write(
+        f"Maximum Moment Location = {max_m_location_ft:.2f} ft from A"
+    )
 
     # Step 7: Section properties
     st.markdown("### Step 7: Section Properties")
@@ -1019,6 +1081,6 @@ with col_st2:
     st.write(f"- Moment of Inertia I: {I:,.1f} in^4")
 
 with col_st3:
-    st.write(f"- Max Bending Stress ($\sigma_{{max}}$): {sigma_max:.2f} ksi (Allowable: {sigma_allow:.2f} ksi)")
-    st.write(f"- Max Shear Stress ($\tau_{{max}}$): {tau_max:.3f} ksi (Allowable: {tau_allow:.2f} ksi)")
+    st.write(f"- Max Bending Stress ($\\sigma_{{max}}$): {sigma_max:.2f} ksi (Allowable: {sigma_allow:.2f} ksi)")
+    st.write(f"- Max Shear Stress ($\\tau_{{max}}$): {tau_max:.3f} ksi (Allowable: {tau_allow:.2f} ksi)")
     st.write(f"- Max Deflection: {max_deflection:.4f} in (Limit L/360: {L/360:.2f} in)")
