@@ -2392,61 +2392,118 @@ with st.expander("Show Detailed Calculations", expanded=False):
     # Step 6: Bending moment
     st.markdown("### Step 6: Bending Moment")
 
-    st.latex(r"M(x)=R_Ax-\sum P_i(x-a_i)-\frac{wx^2}{2}")
-    st.write(f"Maximum Bending Moment = {max_m_kipft:.2f} kip-ft")
-    st.write(
-        f"Maximum Moment Location = {max_m_location_ft:.2f} ft from A"
+    st.latex(
+        r"M(x)=R_Ax-\sum P_i(x-a_i)"
+        r"-\frac{w(x-x_1)^2}{2}"
     )
+
+    # Show a cleaner closed-form substitution when the load case matches
+    # a standard benchmark problem.
+    full_span_udl = (
+        enable_udl
+        and abs(x_start) < 1e-9
+        and abs(x_end - L) < 1e-6
+        and len(all_P) == 0
+        and not enable_moment
+    )
+
+    center_point_load = (
+        len(all_P) == 1
+        and not enable_udl
+        and not enable_moment
+        and abs(all_x[0] - L / 2.0) < max(1e-6, L / 1000.0)
+    )
+
+    if full_span_udl:
+        w_kip_per_ft = w_magnitude * 12.0
+        L_ft = L / 12.0
+
+        st.latex(r"M_{\max}=\frac{wL^2}{8}")
+        st.latex(
+            rf"M_{{\max}}="
+            rf"\frac{{({w_kip_per_ft:.3f})({L_ft:.2f})^2}}{{8}}"
+            rf"={max_m_kipft:.2f}\ \text{{kip-ft}}"
+        )
+        st.latex(r"x_{M_{\max}}=\frac{L}{2}")
+        st.latex(
+            rf"x_{{M_{{\max}}}}="
+            rf"\frac{{{L_ft:.2f}}}{{2}}"
+            rf"={max_m_location_ft:.2f}\ \text{{ft}}"
+        )
+
+    elif center_point_load:
+        point_load = abs(all_P[0])
+        L_ft = L / 12.0
+
+        st.latex(r"M_{\max}=\frac{PL}{4}")
+        st.latex(
+            rf"M_{{\max}}="
+            rf"\frac{{({point_load:.2f})({L_ft:.2f})}}{{4}}"
+            rf"={max_m_kipft:.2f}\ \text{{kip-ft}}"
+        )
+        st.latex(r"x_{M_{\max}}=\frac{L}{2}")
+        st.latex(
+            rf"x_{{M_{{\max}}}}="
+            rf"\frac{{{L_ft:.2f}}}{{2}}"
+            rf"={max_m_location_ft:.2f}\ \text{{ft}}"
+        )
+
+    else:
+        st.write(
+            f"**Maximum Bending Moment = "
+            f"{max_m_kipft:.2f} kip-ft**"
+        )
+        st.write(
+            f"**Maximum Moment Location = "
+            f"{max_m_location_ft:.2f} ft from A**"
+        )
 
     # Step 7: Section properties
     st.markdown("### Step 7: Section Properties")
 
-    if section_shape == "Rectangular (Solid)":
-        st.latex(r"I=\frac{bh^3}{12}")
-        st.write(
-            f"I = ({b:.2f})({h:.2f})³ / 12 "
-            f"= {I:,.2f} in⁴"
-        )
-
-        st.latex(r"S=\frac{I}{h/2}")
-        st.write(f"S = {S:,.2f} in³")
-    else:
-        st.write(f"**Moment of Inertia, I = {I:,.2f} in⁴**")
-        st.write(f"**Section Modulus, S = {S:,.2f} in³**")
+    st.write(
+        f"**Moment of Inertia, I = {I:,.2f} in⁴**"
+    )
+    st.write(
+        f"**Section Modulus, S = {S:,.2f} in³**"
+    )
 
     # Step 8: Maximum bending stress
     st.markdown("### Step 8: Maximum Bending Stress")
 
-    st.latex(r"\sigma_{max}=\frac{M_{max}}{S}")
-    st.write(
-        f"σmax = {max_m:.2f} kip-in / {S:.2f} in³"
+    st.latex(r"\sigma_{\max}=\frac{M_{\max}}{S}")
+
+    st.latex(
+        rf"\sigma_{{\max}}="
+        rf"\frac{{({max_m_kipft:.2f})(12)}}{{{S:.2f}}}"
+        rf"={sigma_max:.3f}\ \text{{ksi}}"
     )
-    st.write(f"Maximum Bending Stress = {sigma_max:.2f} ksi")
 
     # Step 9: Allowable stress
     st.markdown("### Step 9: Allowable Stress")
 
-    st.latex(r"\sigma_{allow}=\frac{F_y}{FOS}")
-    st.write(
-        f"σallow = {yield_strength:.2f} / "
-        f"{factor_of_safety:.2f}"
+    st.latex(r"\sigma_{\mathrm{allow}}=\frac{F_y}{FOS}")
+
+    st.latex(
+        rf"\sigma_{{\mathrm{{allow}}}}="
+        rf"\frac{{{yield_strength:.2f}}}{{{factor_of_safety:.2f}}}"
+        rf"={sigma_allow:.2f}\ \text{{ksi}}"
     )
-    st.write(f"Allowable Stress = {sigma_allow:.2f} ksi")
 
     # Step 10: Utilization ratio
     st.markdown("### Step 10: Utilization Ratio")
 
     st.latex(
-        r"\text{Utilization Ratio}"
-        r"=\frac{\sigma_{max}}{\sigma_{allow}}"
+        r"\text{Utilization Ratio}="
+        r"\frac{\sigma_{\max}}{\sigma_{\mathrm{allow}}}"
     )
 
-    st.write(
-        f"Utilization Ratio = "
-        f"{sigma_max:.2f} / {sigma_allow:.2f}"
+    st.latex(
+        rf"\text{{Utilization Ratio}}="
+        rf"\frac{{{sigma_max:.3f}}}{{{sigma_allow:.2f}}}"
+        rf"={utilization_ratio:.3f}"
+        rf"={utilization_ratio * 100.0:.1f}\%"
     )
-    st.write(f"Utilization Ratio = {utilization_ratio:.3f}")
-    st.write(f"Utilization Percentage = {utilization_ratio:.1%}")
 
     # Step 11: Bending safety result
     st.markdown("### Step 11: Bending Safety Result")
@@ -2467,39 +2524,61 @@ with st.expander("Show Detailed Calculations", expanded=False):
 
     deflection_limit = L / 360.0
 
-    st.latex(r"\delta_{allow}=\frac{L}{360}")
-    st.write(
-        f"Allowable Deflection = {L:.2f} / 360 "
-        f"= {deflection_limit:.4f} in"
-    )
-    st.write(
-        f"Maximum Calculated Deflection = "
-        f"{max_deflection:.4f} in"
-    )
+    if full_span_udl:
+        w_kip_per_in = w_magnitude
 
-    if (
-        not is_cantilever
-        and not is_fixed_fixed
-        and not is_propped
-        and len(all_P) == 1
-        and not enable_udl
-        and not enable_moment
-    ):
-        st.caption(
-            "For a simply supported beam with one point load, "
-            "the numerical result should closely match the standard "
-            "closed-form beam formula."
+        st.latex(
+            r"\delta_{\max}="
+            r"\frac{5wL^4}{384EI}"
         )
+        st.latex(
+            rf"\delta_{{\max}}="
+            rf"\frac{{5({w_kip_per_in:.6f})"
+            rf"({L:.2f})^4}}"
+            rf"{{384({E_modulus:.2f})({I:.2f})}}"
+            rf"={max_deflection:.5f}\ \text{{in}}"
+        )
+
+    elif center_point_load:
+        point_load = abs(all_P[0])
+
+        st.latex(
+            r"\delta_{\max}="
+            r"\frac{PL^3}{48EI}"
+        )
+        st.latex(
+            rf"\delta_{{\max}}="
+            rf"\frac{{({point_load:.2f})({L:.2f})^3}}"
+            rf"{{48({E_modulus:.2f})({I:.2f})}}"
+            rf"={max_deflection:.5f}\ \text{{in}}"
+        )
+
+    else:
+        st.latex(r"EI\frac{d^2v}{dx^2}=M(x)")
+        st.write(
+            f"**Maximum Calculated Deflection = "
+            f"{max_deflection:.5f} in**"
+        )
+
+    st.latex(r"\delta_{\mathrm{allow}}=\frac{L}{360}")
+
+    st.latex(
+        rf"\delta_{{\mathrm{{allow}}}}="
+        rf"\frac{{{L:.2f}}}{{360}}"
+        rf"={deflection_limit:.4f}\ \text{{in}}"
+    )
 
     if max_deflection <= deflection_limit:
         st.success(
             f"Deflection PASS ✅ — "
-            f"{max_deflection:.4f} in ≤ {deflection_limit:.4f} in"
+            f"{max_deflection:.5f} in ≤ "
+            f"{deflection_limit:.4f} in"
         )
     else:
         st.error(
             f"Deflection FAIL ❌ — "
-            f"{max_deflection:.4f} in > {deflection_limit:.4f} in"
+            f"{max_deflection:.5f} in > "
+            f"{deflection_limit:.4f} in"
         )
 
 
