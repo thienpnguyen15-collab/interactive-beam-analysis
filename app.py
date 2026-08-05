@@ -10,6 +10,9 @@ st.set_page_config(page_title="Professional Beam Analysis (2D)", page_icon="🏗
 if "moment_loads" not in st.session_state:
     st.session_state.moment_loads = []
 
+if "unit_system" not in st.session_state:
+    st.session_state.unit_system = "Imperial"
+
 if "display_length_unit" not in st.session_state:
     st.session_state.display_length_unit = "Feet (ft)"
 
@@ -31,6 +34,21 @@ if "custom_E" not in st.session_state:
 if "selected_section_name" not in st.session_state:
     st.session_state.selected_section_name = "Rectangular"
 
+if "custom_S" not in st.session_state:
+    st.session_state.custom_S = 341.25
+
+if "custom_A_web" not in st.session_state:
+    st.session_state.custom_A_web = 128.0
+
+if "custom_material_name" not in st.session_state:
+    st.session_state.custom_material_name = "A36 Steel"
+
+if "custom_yield_strength" not in st.session_state:
+    st.session_state.custom_yield_strength = 36.0
+
+if "custom_factor_of_safety" not in st.session_state:
+    st.session_state.custom_factor_of_safety = 1.5
+
 
 # ================= SETTINGS DIALOG =================
 
@@ -38,59 +56,118 @@ if "selected_section_name" not in st.session_state:
 def open_settings():
     st.subheader("Unit System")
 
-    st.selectbox(
-        "Units",
-        ["Imperial"],
-        index=0,
-        help="The current application uses imperial units internally."
-    )
+    imperial_tab, metric_tab = st.tabs(["Imperial", "Metric"])
 
-    st.session_state.display_length_unit = st.selectbox(
-        "Length",
-        ["Inches (in)", "Feet (ft)"],
-        index=(
-            0
-            if st.session_state.display_length_unit == "Inches (in)"
-            else 1
+    with imperial_tab:
+        st.caption("Select imperial display units.")
+
+        imperial_length = st.selectbox(
+            "Length",
+            ["Inches (in)", "Feet (ft)"],
+            index=(
+                0
+                if st.session_state.display_length_unit == "Inches (in)"
+                else 1
+            ),
+            key="imperial_length_setting"
         )
-    )
 
-    st.session_state.display_force_unit = st.selectbox(
-        "Force",
-        ["Pounds (lbs)", "kips (1 kip = 1,000 lbs)"],
-        index=(
-            0
-            if st.session_state.display_force_unit == "Pounds (lbs)"
-            else 1
+        imperial_force = st.selectbox(
+            "Force",
+            ["Pounds (lbs)", "kips (1 kip = 1,000 lbs)"],
+            index=(
+                0
+                if st.session_state.display_force_unit == "Pounds (lbs)"
+                else 1
+            ),
+            key="imperial_force_setting"
         )
-    )
 
-    st.session_state.display_moment_unit = st.selectbox(
-        "Moment",
-        ["kip-in", "kip-ft"],
-        index=(
-            0
-            if st.session_state.display_moment_unit == "kip-in"
-            else 1
+        imperial_moment = st.selectbox(
+            "Moment",
+            ["kip-in", "kip-ft"],
+            index=(
+                0
+                if st.session_state.display_moment_unit == "kip-in"
+                else 1
+            ),
+            key="imperial_moment_setting"
         )
-    )
 
-    st.session_state.display_stress_unit = st.selectbox(
-        "Stress",
-        ["psi", "ksi"],
-        index=(
-            0
-            if st.session_state.display_stress_unit == "psi"
-            else 1
+        imperial_stress = st.selectbox(
+            "Stress",
+            ["psi", "ksi"],
+            index=(
+                0
+                if st.session_state.display_stress_unit == "psi"
+                else 1
+            ),
+            key="imperial_stress_setting"
         )
-    )
 
-    st.markdown(
-        f"""
-        **Section Length:** {st.session_state.display_length_unit}  
-        **Material Strength:** {st.session_state.display_stress_unit}
-        """
-    )
+        if st.button(
+            "Use Imperial Units",
+            type="primary",
+            use_container_width=True,
+            key="use_imperial_units"
+        ):
+            st.session_state.unit_system = "Imperial"
+            st.session_state.display_length_unit = imperial_length
+            st.session_state.display_force_unit = imperial_force
+            st.session_state.display_moment_unit = imperial_moment
+            st.session_state.display_stress_unit = imperial_stress
+            st.success("Imperial units selected.")
+
+    with metric_tab:
+        st.caption("Select metric display units.")
+
+        metric_length = st.selectbox(
+            "Length",
+            ["Millimeters (mm)", "Meters (m)"],
+            index=1,
+            key="metric_length_setting"
+        )
+
+        metric_force = st.selectbox(
+            "Force",
+            ["Newtons (N)", "Kilonewtons (kN)"],
+            index=1,
+            key="metric_force_setting"
+        )
+
+        metric_moment = st.selectbox(
+            "Moment",
+            ["N-m", "kN-m"],
+            index=1,
+            key="metric_moment_setting"
+        )
+
+        metric_stress = st.selectbox(
+            "Stress",
+            ["Pa", "MPa"],
+            index=1,
+            key="metric_stress_setting"
+        )
+
+        if st.button(
+            "Use Metric Units",
+            type="primary",
+            use_container_width=True,
+            key="use_metric_units"
+        ):
+            st.session_state.unit_system = "Metric"
+            st.session_state.display_length_unit = metric_length
+            st.session_state.display_force_unit = metric_force
+            st.session_state.display_moment_unit = metric_moment
+            st.session_state.display_stress_unit = metric_stress
+            st.success("Metric units selected.")
+
+    st.markdown("---")
+    st.write(f"**Active system:** {st.session_state.unit_system}")
+    st.write(f"**Length:** {st.session_state.display_length_unit}")
+    st.write(f"**Force:** {st.session_state.display_force_unit}")
+    st.write(f"**Moment:** {st.session_state.display_moment_unit}")
+    st.write(f"**Stress:** {st.session_state.display_stress_unit}")
 
 
 # ================= SECTION BUILDER DIALOG =================
@@ -183,21 +260,56 @@ def open_section_builder():
     with properties_tab:
         st.subheader("Section Properties")
 
-        st.session_state.custom_Iz = st.number_input(
-            "Moment of Inertia (Iz)",
-            min_value=0.01,
-            value=float(st.session_state.custom_Iz),
-            step=10.0
-        )
-        st.caption("Unit: in⁴")
+        prop_col1, prop_col2 = st.columns(2)
 
-        st.session_state.custom_E = st.number_input(
-            "Young's Modulus (E)",
-            min_value=1.0,
-            value=float(st.session_state.custom_E),
-            step=100.0
+        with prop_col1:
+            st.session_state.custom_Iz = st.number_input(
+                "Moment of Inertia, Iz (in⁴)",
+                min_value=0.01,
+                value=float(st.session_state.custom_Iz),
+                step=10.0
+            )
+
+            st.session_state.custom_S = st.number_input(
+                "Section Modulus, S (in³)",
+                min_value=0.01,
+                value=float(st.session_state.custom_S),
+                step=1.0
+            )
+
+            st.session_state.custom_A_web = st.number_input(
+                "Effective Shear Area (in²)",
+                min_value=0.01,
+                value=float(st.session_state.custom_A_web),
+                step=1.0
+            )
+
+        with prop_col2:
+            st.session_state.custom_E = st.number_input(
+                "Young's Modulus, E (ksi)",
+                min_value=1.0,
+                value=float(st.session_state.custom_E),
+                step=100.0
+            )
+
+            st.session_state.custom_yield_strength = st.number_input(
+                "Yield / Allowable Strength (ksi)",
+                min_value=0.01,
+                value=float(st.session_state.custom_yield_strength),
+                step=1.0
+            )
+
+            st.session_state.custom_factor_of_safety = st.number_input(
+                "Factor of Safety",
+                min_value=0.1,
+                value=float(st.session_state.custom_factor_of_safety),
+                step=0.1
+            )
+
+        st.session_state.custom_material_name = st.text_input(
+            "Material Name",
+            value=st.session_state.custom_material_name
         )
-        st.caption("Unit: ksi")
 
         st.markdown(
             "<div style='text-align:center;font-size:22px;font-weight:700;'>OR</div>",
@@ -219,18 +331,26 @@ def open_section_builder():
         )
 
         calculated_Iz = builder_b * builder_h**3 / 12.0
+        calculated_S = calculated_Iz / (builder_h / 2.0)
+        calculated_A = builder_b * builder_h
 
         st.latex(r"I_z=\frac{bh^3}{12}")
+        st.latex(r"S=\frac{I}{h/2}")
+
         st.write(f"Calculated Iz = {calculated_Iz:,.2f} in⁴")
+        st.write(f"Calculated S = {calculated_S:,.2f} in³")
+        st.write(f"Calculated Area = {calculated_A:,.2f} in²")
 
         if st.button(
-            "Use Calculated Iz",
+            "Use Calculated Rectangular Properties",
             type="primary",
             use_container_width=True
         ):
             st.session_state.custom_Iz = calculated_Iz
+            st.session_state.custom_S = calculated_S
+            st.session_state.custom_A_web = calculated_A
             st.session_state.selected_section_name = "Rectangular"
-            st.success("Calculated section properties saved.")
+            st.success("Calculated rectangular properties saved.")
 
     with library_tab:
         st.subheader("American Section Library")
@@ -331,36 +451,42 @@ st.caption(
 with st.sidebar:
     st.header("⚙️ Beam & Load Parameters (Imperial)")
 
-    len_unit = st.radio(
-        "Length Unit for Beam",
-        ["Inches (in)", "Feet (ft)"],
-        index=(
-            0
-            if st.session_state.display_length_unit == "Inches (in)"
-            else 1
-        ),
-        horizontal=True
-    )
+    st.markdown("### Active Units")
+    st.write(f"System: **{st.session_state.unit_system}**")
+    st.write(f"Length: **{st.session_state.display_length_unit}**")
+    st.write(f"Force: **{st.session_state.display_force_unit}**")
 
-    st.session_state.display_length_unit = len_unit
-    if "Feet" in len_unit:
-        L_ft = st.number_input("Beam Length L (ft)", min_value=0.1, value=16.0, step=1.0)
-        L = L_ft * 12.0
-    else:
-        L = st.number_input("Beam Length L (in)", min_value=1.0, value=192.0, step=12.0)
-
-    st.subheader("Force Unit Selection")
-    force_unit = st.selectbox(
-        "Select Force Unit",
-        ["kips (1 kip = 1,000 lbs)", "Pounds (lbs)"],
-        index=(
-            1
-            if st.session_state.display_force_unit == "Pounds (lbs)"
-            else 0
+    # Internal calculations remain in imperial units.
+    if st.session_state.unit_system == "Metric":
+        L_m = st.number_input(
+            "Beam Length L (m)",
+            min_value=0.01,
+            value=4.8768,
+            step=0.1
         )
-    )
+        L = L_m * 39.37007874
+        len_unit = "Meters (m)"
+        force_unit = "Kilonewtons (kN)"
+    else:
+        if st.session_state.display_length_unit == "Feet (ft)":
+            L_ft = st.number_input(
+                "Beam Length L (ft)",
+                min_value=0.1,
+                value=16.0,
+                step=1.0
+            )
+            L = L_ft * 12.0
+            len_unit = "Feet (ft)"
+        else:
+            L = st.number_input(
+                "Beam Length L (in)",
+                min_value=1.0,
+                value=192.0,
+                step=12.0
+            )
+            len_unit = "Inches (in)"
 
-    st.session_state.display_force_unit = force_unit
+        force_unit = st.session_state.display_force_unit
 
     st.subheader("Support Configurations (Boundary Conditions)")
     support_options = ["Pinned (Hinged)", "Roller", "Fixed (Ngàm)", "Free (Tự do)"]
@@ -513,103 +639,461 @@ with st.sidebar:
         w_magnitude = 0.0
         x_start, x_end = 0.0, 0.0
 
-    st.subheader("4. Cross-Section & Dimensions (Inches)")
+    # ================= SECTION INPUT MODE =================
+    st.subheader("4. Section Input Mode")
 
-    if st.button(
-        "📐 Launch Section Builder",
-        use_container_width=True,
-        key="old_interface_section_builder"
-    ):
-        open_section_builder()
-
-    st.caption(
-        f"Builder selection: {st.session_state.selected_section_name}"
+    section_input_mode = st.radio(
+        "Choose how to enter the cross-section:",
+        [
+            "Option 1 — SkyCiv Style",
+            "Option 2 — Sidebar Layout"
+        ],
+        index=1,
+        help=(
+            "SkyCiv Style uses the Section Builder dialog. "
+            "Sidebar Layout shows all section and material controls directly."
+        )
     )
-    section_shape = st.selectbox("Cross-Section Shape", ["Rectangular (Solid)", "Hollow Box / Tube", "I-Shape / Wide Flange"])
 
-    if section_shape == "Rectangular (Solid)":
-        b = st.slider("Width b (in)", min_value=1.0, max_value=24.0, value=8.0, step=0.5)
-        h = st.slider("Total Height h (in)", min_value=1.0, max_value=36.0, value=16.0, step=0.5)
-        I = b * (h**3) / 12.0
-        S = I / (h / 2.0)
-        A_web = b * h
-        
-    elif section_shape == "Hollow Box / Tube":
-        b = st.slider("Outer Width b (in)", min_value=2.0, max_value=24.0, value=8.0, step=0.5)
-        h = st.slider("Outer Height h (in)", min_value=2.0, max_value=36.0, value=16.0, step=0.5)
-        t_wall = st.slider("Wall Thickness t (in)", min_value=0.1, max_value=3.0, value=0.5, step=0.1)
-        b_in = max(0.1, b - 2 * t_wall)
-        h_in = max(0.1, h - 2 * t_wall)
-        I = (b * (h**3) - b_in * (h_in**3)) / 12.0
-        S = I / (h / 2.0)
-        A_web = 2 * t_wall * h
-        
-    else: # I-Shape
-        b = st.slider("Flange Width b (in)", min_value=2.0, max_value=24.0, value=8.0, step=0.5)
-        h = st.slider("Total Height h (in)", min_value=2.0, max_value=36.0, value=16.0, step=0.5)
-        t_web = st.slider("Web Thickness t_web (in)", min_value=0.1, max_value=2.0, value=0.4, step=0.1)
-        t_flange = st.slider("Flange Thickness t_flange (in)", min_value=0.1, max_value=2.0, value=0.6, step=0.1)
-        h_web = max(0.1, h - 2 * t_flange)
-        I = (t_web * (h_web**3) / 12.0) + 2 * (b * (t_flange**3) / 12.0 + b * t_flange * ((h - t_flange)/2.0)**2)
-        S = I / (h / 2.0)
-        A_web = t_web * h_web
+    # -----------------------------------------------------
+    # OPTION 1: SKYCIV-STYLE DIALOG INPUT
+    # -----------------------------------------------------
+    if section_input_mode == "Option 1 — SkyCiv Style":
+        st.markdown("#### Section Builder")
 
-    # ================= 2D CROSS-SECTION PROFILE VIEW =================
-    st.markdown("---")
-    st.subheader("📐 2D Cross-Section Preview")
+        if st.button(
+            "📐 Launch Section Builder",
+            type="primary",
+            use_container_width=True,
+            key="section_mode_dialog_button"
+        ):
+            open_section_builder()
 
-    fig_2d = go.Figure()
-    if section_shape == "Rectangular (Solid)":
-        x_rect = [-b/2, b/2, b/2, -b/2, -b/2]
-        y_rect = [-h/2, -h/2, h/2, h/2, -h/2]
-        fig_2d.add_trace(go.Scatter(x=x_rect, y=y_rect, fill="toself", fillcolor="#37474F", line=dict(color="black", width=2)))
-    elif section_shape == "Hollow Box / Tube":
-        fig_2d.add_trace(go.Scatter(x=[-b/2, b/2, b/2, -b/2, -b/2], y=[-h/2, -h/2, h/2, h/2, -h/2], fill="toself", fillcolor="#37474F", line=dict(color="black", width=2), name="Outer"))
-        fig_2d.add_trace(go.Scatter(x=[-b_in/2, b_in/2, b_in/2, -b_in/2, -b_in/2], y=[-h_in/2, -h_in/2, h_in/2, h_in/2, -h_in/2], fill="toself", fillcolor="white", line=dict(color="gray", width=2), name="Inner"))
-    else: # I-Shape
-        x_pts = [-b/2, b/2, b/2, t_web/2, t_web/2, b/2, b/2, -b/2, -b/2, -t_web/2, -t_web/2, -b/2, -b/2]
-        y_pts = [-h/2, -h/2, -h/2 + t_flange, -h/2 + t_flange, h/2 - t_flange, h/2 - t_flange, h/2, h/2, h/2 - t_flange, h/2 - t_flange, -h/2 + t_flange, -h/2 + t_flange, -h/2]
-        fig_2d.add_trace(go.Scatter(x=x_pts, y=y_pts, fill="toself", fillcolor="#37474F", line=dict(color="black", width=2)))
+        st.info(
+            "Use the dialog to select a section shape and enter advanced "
+            "section and material properties."
+        )
 
-    fig_2d.update_layout(
-        xaxis=dict(title="Width b (in)", range=[-max(b, 4)*0.7, max(b, 4)*0.7]),
-        yaxis=dict(title="Height h (in)", range=[-max(h, 4)*0.7, max(h, 4)*0.7], scaleanchor="x", scaleratio=1),
-        margin=dict(l=0, r=0, b=0, t=10),
-        height=220,
-        showlegend=False
-    )
-    st.plotly_chart(fig_2d, use_container_width=True)
+        st.write(
+            f"**Selected Section:** "
+            f"{st.session_state.selected_section_name}"
+        )
+        st.write(
+            f"**Material:** "
+            f"{st.session_state.custom_material_name}"
+        )
+        st.write(
+            f"**Iz:** {st.session_state.custom_Iz:,.2f} in⁴"
+        )
+        st.write(
+            f"**S:** {st.session_state.custom_S:,.2f} in³"
+        )
+        st.write(
+            f"**Effective Shear Area:** "
+            f"{st.session_state.custom_A_web:,.2f} in²"
+        )
+        st.write(
+            f"**E:** {st.session_state.custom_E:,.2f} ksi"
+        )
 
-    st.subheader("5. Material Properties (ksi)")
-    material_category = st.selectbox("Material Category", ["Steel & Metals", "Wood & Timber", "Custom"])
+        # Variables used by all downstream calculations.
+        section_shape = st.session_state.selected_section_name
+        I = float(st.session_state.custom_Iz)
+        S = float(st.session_state.custom_S)
+        A_web = float(st.session_state.custom_A_web)
 
-    if material_category == "Steel & Metals":
-        material_choice = st.selectbox("Select Steel Grade", ["A36 Steel (Fy = 36 ksi)", "A992 Steel (Fy = 50 ksi)", "Aluminum 6061-T6 (Fy = 35 ksi)"])
-        if "A36" in material_choice:
-            mat_name, yield_strength, E_modulus = "A36 Steel", 36.0, 29000.0
-        elif "A992" in material_choice:
-            mat_name, yield_strength, E_modulus = "A992 Steel", 50.0, 29000.0
-        else:
-            mat_name, yield_strength, E_modulus = "Aluminum 6061-T6", 35.0, 10000.0
-            
-    elif material_category == "Wood & Timber":
-        material_choice = st.selectbox("Select Wood Grade", [
-            "Douglas Fir-Larch No.1 (Fb = 1.5 ksi)",
-            "Southern Pine No.1 (Fb = 1.7 ksi)",
-            "Hem-Fir No.1/No.2 (Fb = 1.2 ksi)"
-        ])
-        if "Douglas Fir" in material_choice:
-            mat_name, yield_strength, E_modulus = "Douglas Fir-Larch No.1", 1.5, 1600.0
-        elif "Southern Pine" in material_choice:
-            mat_name, yield_strength, E_modulus = "Southern Pine No.1", 1.7, 1800.0
-        else:
-            mat_name, yield_strength, E_modulus = "Hem-Fir No.1/No.2", 1.2, 1400.0
+        mat_name = st.session_state.custom_material_name
+        yield_strength = float(
+            st.session_state.custom_yield_strength
+        )
+        E_modulus = float(st.session_state.custom_E)
+        factor_of_safety = float(
+            st.session_state.custom_factor_of_safety
+        )
+
+        # Use a neutral color for library/custom sections.
+        beam_color = "#455A64"
+        theme_name = "Section Builder"
+
+    # -----------------------------------------------------
+    # OPTION 2: DIRECT SIDEBAR INPUT
+    # -----------------------------------------------------
     else:
-        mat_name = st.text_input("Custom Material Name", value="Custom")
-        yield_strength = st.number_input("Allowable Stress (ksi)", value=20.0)
-        E_modulus = st.number_input("E Modulus (ksi)", value=29000.0)
-        
-    factor_of_safety = st.number_input("Factor of Safety (FOS)", min_value=0.1, value=1.5, step=0.1)
+        st.subheader("Cross-Section & Dimensions (Inches)")
+
+        section_shape = st.selectbox(
+            "Cross-Section Shape",
+            [
+                "Rectangular (Solid)",
+                "Hollow Box / Tube",
+                "I-Shape / Wide Flange"
+            ]
+        )
+
+        if section_shape == "Rectangular (Solid)":
+            b = st.slider(
+                "Width b (in)",
+                min_value=1.0,
+                max_value=24.0,
+                value=8.0,
+                step=0.5
+            )
+
+            h = st.slider(
+                "Total Height h (in)",
+                min_value=1.0,
+                max_value=36.0,
+                value=16.0,
+                step=0.5
+            )
+
+            I = b * h**3 / 12.0
+            S = I / (h / 2.0)
+            A_web = b * h
+
+        elif section_shape == "Hollow Box / Tube":
+            b = st.slider(
+                "Outer Width b (in)",
+                min_value=2.0,
+                max_value=24.0,
+                value=8.0,
+                step=0.5
+            )
+
+            h = st.slider(
+                "Outer Height h (in)",
+                min_value=2.0,
+                max_value=36.0,
+                value=16.0,
+                step=0.5
+            )
+
+            t_wall = st.slider(
+                "Wall Thickness t (in)",
+                min_value=0.1,
+                max_value=3.0,
+                value=0.5,
+                step=0.1
+            )
+
+            b_in = max(0.1, b - 2.0 * t_wall)
+            h_in = max(0.1, h - 2.0 * t_wall)
+
+            I = (
+                b * h**3
+                - b_in * h_in**3
+            ) / 12.0
+
+            S = I / (h / 2.0)
+            A_web = 2.0 * t_wall * h
+
+        else:
+            b = st.slider(
+                "Flange Width b (in)",
+                min_value=2.0,
+                max_value=24.0,
+                value=8.0,
+                step=0.5
+            )
+
+            h = st.slider(
+                "Total Height h (in)",
+                min_value=2.0,
+                max_value=36.0,
+                value=16.0,
+                step=0.5
+            )
+
+            t_web = st.slider(
+                "Web Thickness t_web (in)",
+                min_value=0.1,
+                max_value=2.0,
+                value=0.4,
+                step=0.1
+            )
+
+            t_flange = st.slider(
+                "Flange Thickness t_flange (in)",
+                min_value=0.1,
+                max_value=2.0,
+                value=0.6,
+                step=0.1
+            )
+
+            h_web = max(0.1, h - 2.0 * t_flange)
+
+            I = (
+                t_web * h_web**3 / 12.0
+                + 2.0 * (
+                    b * t_flange**3 / 12.0
+                    + b
+                    * t_flange
+                    * ((h - t_flange) / 2.0) ** 2
+                )
+            )
+
+            S = I / (h / 2.0)
+            A_web = t_web * h_web
+
+        # ================= 2D CROSS-SECTION PREVIEW =================
+        st.markdown("---")
+        st.subheader("📐 2D Cross-Section Preview")
+
+        fig_2d = go.Figure()
+
+        if section_shape == "Rectangular (Solid)":
+            x_rect = [
+                -b / 2.0,
+                b / 2.0,
+                b / 2.0,
+                -b / 2.0,
+                -b / 2.0
+            ]
+
+            y_rect = [
+                -h / 2.0,
+                -h / 2.0,
+                h / 2.0,
+                h / 2.0,
+                -h / 2.0
+            ]
+
+            fig_2d.add_trace(
+                go.Scatter(
+                    x=x_rect,
+                    y=y_rect,
+                    fill="toself",
+                    fillcolor="#37474F",
+                    line=dict(
+                        color="black",
+                        width=2
+                    )
+                )
+            )
+
+        elif section_shape == "Hollow Box / Tube":
+            fig_2d.add_trace(
+                go.Scatter(
+                    x=[
+                        -b / 2.0,
+                        b / 2.0,
+                        b / 2.0,
+                        -b / 2.0,
+                        -b / 2.0
+                    ],
+                    y=[
+                        -h / 2.0,
+                        -h / 2.0,
+                        h / 2.0,
+                        h / 2.0,
+                        -h / 2.0
+                    ],
+                    fill="toself",
+                    fillcolor="#37474F",
+                    line=dict(
+                        color="black",
+                        width=2
+                    ),
+                    name="Outer"
+                )
+            )
+
+            fig_2d.add_trace(
+                go.Scatter(
+                    x=[
+                        -b_in / 2.0,
+                        b_in / 2.0,
+                        b_in / 2.0,
+                        -b_in / 2.0,
+                        -b_in / 2.0
+                    ],
+                    y=[
+                        -h_in / 2.0,
+                        -h_in / 2.0,
+                        h_in / 2.0,
+                        h_in / 2.0,
+                        -h_in / 2.0
+                    ],
+                    fill="toself",
+                    fillcolor="white",
+                    line=dict(
+                        color="gray",
+                        width=2
+                    ),
+                    name="Inner"
+                )
+            )
+
+        else:
+            x_pts = [
+                -b / 2.0,
+                b / 2.0,
+                b / 2.0,
+                t_web / 2.0,
+                t_web / 2.0,
+                b / 2.0,
+                b / 2.0,
+                -b / 2.0,
+                -b / 2.0,
+                -t_web / 2.0,
+                -t_web / 2.0,
+                -b / 2.0,
+                -b / 2.0
+            ]
+
+            y_pts = [
+                -h / 2.0,
+                -h / 2.0,
+                -h / 2.0 + t_flange,
+                -h / 2.0 + t_flange,
+                h / 2.0 - t_flange,
+                h / 2.0 - t_flange,
+                h / 2.0,
+                h / 2.0,
+                h / 2.0 - t_flange,
+                h / 2.0 - t_flange,
+                -h / 2.0 + t_flange,
+                -h / 2.0 + t_flange,
+                -h / 2.0
+            ]
+
+            fig_2d.add_trace(
+                go.Scatter(
+                    x=x_pts,
+                    y=y_pts,
+                    fill="toself",
+                    fillcolor="#37474F",
+                    line=dict(
+                        color="black",
+                        width=2
+                    )
+                )
+            )
+
+        fig_2d.update_layout(
+            xaxis=dict(
+                title="Width (in)",
+                range=[
+                    -max(b, 4.0) * 0.7,
+                    max(b, 4.0) * 0.7
+                ]
+            ),
+            yaxis=dict(
+                title="Height (in)",
+                range=[
+                    -max(h, 4.0) * 0.7,
+                    max(h, 4.0) * 0.7
+                ],
+                scaleanchor="x",
+                scaleratio=1
+            ),
+            margin=dict(
+                l=0,
+                r=0,
+                b=0,
+                t=10
+            ),
+            height=220,
+            showlegend=False
+        )
+
+        st.plotly_chart(
+            fig_2d,
+            use_container_width=True
+        )
+
+        # ================= MATERIAL PROPERTIES =================
+        st.subheader("Material Properties (ksi)")
+
+        material_category = st.selectbox(
+            "Material Category",
+            [
+                "Steel & Metals",
+                "Wood & Timber",
+                "Custom"
+            ]
+        )
+
+        if material_category == "Steel & Metals":
+            material_choice = st.selectbox(
+                "Select Material",
+                [
+                    "A36 Steel (Fy = 36 ksi)",
+                    "A992 Steel (Fy = 50 ksi)",
+                    "Aluminum 6061-T6 (Fy = 35 ksi)"
+                ]
+            )
+
+            if "A36" in material_choice:
+                mat_name = "A36 Steel"
+                yield_strength = 36.0
+                E_modulus = 29000.0
+            elif "A992" in material_choice:
+                mat_name = "A992 Steel"
+                yield_strength = 50.0
+                E_modulus = 29000.0
+            else:
+                mat_name = "Aluminum 6061-T6"
+                yield_strength = 35.0
+                E_modulus = 10000.0
+
+        elif material_category == "Wood & Timber":
+            material_choice = st.selectbox(
+                "Select Wood Grade",
+                [
+                    "Douglas Fir-Larch No.1 (Fb = 1.5 ksi)",
+                    "Southern Pine No.1 (Fb = 1.7 ksi)",
+                    "Hem-Fir No.1/No.2 (Fb = 1.2 ksi)"
+                ]
+            )
+
+            if "Douglas Fir" in material_choice:
+                mat_name = "Douglas Fir-Larch No.1"
+                yield_strength = 1.5
+                E_modulus = 1600.0
+            elif "Southern Pine" in material_choice:
+                mat_name = "Southern Pine No.1"
+                yield_strength = 1.7
+                E_modulus = 1800.0
+            else:
+                mat_name = "Hem-Fir No.1/No.2"
+                yield_strength = 1.2
+                E_modulus = 1400.0
+
+        else:
+            mat_name = st.text_input(
+                "Custom Material Name",
+                value="Custom"
+            )
+
+            yield_strength = st.number_input(
+                "Yield / Allowable Strength (ksi)",
+                min_value=0.01,
+                value=20.0
+            )
+
+            E_modulus = st.number_input(
+                "E Modulus (ksi)",
+                min_value=1.0,
+                value=29000.0
+            )
+
+        factor_of_safety = st.number_input(
+            "Factor of Safety (FOS)",
+            min_value=0.1,
+            value=1.5,
+            step=0.1
+        )
+
+        if material_category == "Steel & Metals":
+            beam_color = "#37474F"
+            theme_name = "Steel Structure"
+        elif material_category == "Wood & Timber":
+            beam_color = "#8D6E63"
+            theme_name = "Timber Structure"
+        else:
+            beam_color = "#7E57C2"
+            theme_name = "Custom Material"
 
 
 # ================= INPUT VALIDATION =================
@@ -652,18 +1136,6 @@ if is_advanced_support := (
         "The pinned–roller case is the recommended validated example."
     )
 
-
-# ================= MATERIAL THEME =================
-
-if material_category == "Steel & Metals":
-    beam_color = "#37474F"
-    theme_name = "Steel Structure"
-elif material_category == "Wood & Timber":
-    beam_color = "#8D6E63"
-    theme_name = "Timber Structure"
-else:
-    beam_color = "#7E57C2"
-    theme_name = "Custom Material"
 
 # ================= CALCULATIONS BASED ON SUPPORTS =================
 
@@ -880,9 +1352,25 @@ sigma_allow = yield_strength / factor_of_safety if factor_of_safety > 0 else 1.0
 tau_allow = (0.577 * yield_strength) / factor_of_safety
 utilization_ratio = sigma_max / sigma_allow
 
+# ================= DISPLAY UNIT CONVERSIONS =================
+
+if st.session_state.unit_system == "Metric":
+    displayed_RA_metric = RA * 4.448221615
+    displayed_RB_metric = RB * 4.448221615
+    displayed_max_v_metric = max_v * 4.448221615
+    displayed_max_m_metric = max_m_kipft * 1.355817948
+    displayed_max_deflection_metric = max_deflection * 25.4
+    displayed_sigma_max_metric = sigma_max * 6.894757293
+    displayed_sigma_allow_metric = sigma_allow * 6.894757293
+
 # Summary Metrics Display
 
-if "Pounds" in force_unit:
+if st.session_state.unit_system == "Metric":
+    m1_val, m1_lbl = displayed_RA_metric, "Reaction R_A (kN)"
+    m2_val, m2_lbl = displayed_RB_metric, "Reaction R_B (kN)"
+    m3_val, m3_lbl = displayed_max_v_metric, "Max Shear V (kN)"
+    fmt_str = "{:.2f} kN"
+elif "Pounds" in force_unit:
     m1_val, m1_lbl = RA * 1000.0, "Reaction R_A (lbs)"
     m2_val, m2_lbl = RB * 1000.0, "Reaction R_B (lbs)"
     m3_val, m3_lbl = max_v * 1000.0, "Max Shear V (lbs)"
@@ -1534,12 +2022,10 @@ with col_st2:
         f"{st.session_state.selected_section_name}"
     )
     st.write(
-        f"- Builder Iz: "
-        f"{st.session_state.custom_Iz:,.1f} in⁴"
+        f"- Active Iz: {I:,.1f} in⁴"
     )
     st.write(
-        f"- Builder E: "
-        f"{st.session_state.custom_E:,.1f} ksi"
+        f"- Active E: {E_modulus:,.1f} ksi"
     )
     st.write(f"- Section Shape: {section_shape}")
     st.write(f"- Moment of Inertia I: {I:,.1f} in^4")
