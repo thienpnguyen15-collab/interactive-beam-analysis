@@ -174,199 +174,435 @@ def open_settings():
 
 @st.dialog("Create Custom Section", width="large")
 def open_section_builder():
-    custom_tab, properties_tab, library_tab = st.tabs(
-        ["Custom Shapes", "Section Properties", "American Library"]
+    setup_tab, advanced_tab, library_tab = st.tabs(
+        ["Shape & Material", "Advanced Properties", "American Library"]
     )
 
-    with custom_tab:
-        st.subheader("Select a Section Shape")
+    # =====================================================
+    # SHAPE, DIMENSIONS, AND MATERIAL
+    # =====================================================
+    with setup_tab:
+        st.subheader("Section Shape")
 
-        search_term = st.text_input(
-            "Search",
-            placeholder="Search by section name"
-        )
-
-        category = st.selectbox(
-            "Category",
+        shape_choice = st.selectbox(
+            "Select Shape",
             [
-                "All",
-                "Steel Sections",
-                "Timber Sections",
-                "Concrete Sections",
-                "Custom Sections",
-            ]
+                "Rectangular (Solid)",
+                "Hollow Box / Tube",
+                "I-Shape / Wide Flange",
+                "Solid Circle",
+                "Round Tube"
+            ],
+            index=0
         )
 
-        section_library = [
-            ("I-Beam", "Steel Sections", "工"),
-            ("T-Beam", "Steel Sections", "⊤"),
-            ("C-Channel", "Steel Sections", "⊏"),
-            ("L-Shape", "Steel Sections", "⌞"),
-            ("Double Channel", "Steel Sections", "⊏⊐"),
-            ("Rectangle", "Custom Sections", "▰"),
-            ("Square Tube", "Steel Sections", "▣"),
-            ("Solid Circle", "Custom Sections", "●"),
-            ("Round Tube", "Steel Sections", "◉"),
-            ("Hollow Rectangle", "Steel Sections", "▢"),
-            ("Trapezoid", "Custom Sections", "▱"),
-            ("Triangle", "Custom Sections", "△"),
-            ("Right Triangle", "Custom Sections", "◿"),
-            ("Timber Rectangle", "Timber Sections", "▭"),
-            ("Concrete Rectangle", "Concrete Sections", "▮"),
-        ]
+        st.markdown("### Dimensions")
 
-        filtered = []
-        for name, group, icon in section_library:
-            search_ok = not search_term or search_term.lower() in name.lower()
-            category_ok = category == "All" or group == category
-            if search_ok and category_ok:
-                filtered.append((name, group, icon))
+        if shape_choice == "Rectangular (Solid)":
+            dim_col1, dim_col2 = st.columns(2)
 
-        rows = [filtered[i:i + 5] for i in range(0, len(filtered), 5)]
+            with dim_col1:
+                b = st.number_input(
+                    "Width b (in)",
+                    min_value=0.1,
+                    value=8.0,
+                    step=0.5,
+                    key="builder_rect_b"
+                )
 
-        for row_index, row in enumerate(rows):
-            cols = st.columns(5)
-            for col_index, (name, group, icon) in enumerate(row):
-                with cols[col_index]:
-                    st.markdown(
-                        f"""
-                        <div style="
-                            border:1px solid #d7dde5;
-                            border-radius:8px;
-                            padding:12px;
-                            text-align:center;
-                            min-height:110px;
-                            background:#ffffff;
-                        ">
-                            <div style="font-size:44px;">{icon}</div>
-                            <div style="font-size:13px;">{name}</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
+            with dim_col2:
+                h = st.number_input(
+                    "Height h (in)",
+                    min_value=0.1,
+                    value=16.0,
+                    step=0.5,
+                    key="builder_rect_h"
+                )
 
-                    if st.button(
-                        "Select",
-                        key=f"old_ui_section_{row_index}_{col_index}",
-                        use_container_width=True
-                    ):
-                        st.session_state.selected_section_name = name
-                        st.success(f"{name} selected.")
+            calculated_I = b * h**3 / 12.0
+            calculated_S = calculated_I / (h / 2.0)
+            calculated_A = b * h
 
-        st.info(
-            f"Current selection: {st.session_state.selected_section_name}"
+        elif shape_choice == "Hollow Box / Tube":
+            dim_col1, dim_col2, dim_col3 = st.columns(3)
+
+            with dim_col1:
+                b = st.number_input(
+                    "Outer Width b (in)",
+                    min_value=0.2,
+                    value=8.0,
+                    step=0.5,
+                    key="builder_box_b"
+                )
+
+            with dim_col2:
+                h = st.number_input(
+                    "Outer Height h (in)",
+                    min_value=0.2,
+                    value=16.0,
+                    step=0.5,
+                    key="builder_box_h"
+                )
+
+            with dim_col3:
+                t = st.number_input(
+                    "Wall Thickness t (in)",
+                    min_value=0.05,
+                    value=0.5,
+                    step=0.05,
+                    key="builder_box_t"
+                )
+
+            b_inner = max(0.01, b - 2.0 * t)
+            h_inner = max(0.01, h - 2.0 * t)
+
+            calculated_I = (
+                b * h**3
+                - b_inner * h_inner**3
+            ) / 12.0
+
+            calculated_S = calculated_I / (h / 2.0)
+            calculated_A = b * h - b_inner * h_inner
+
+        elif shape_choice == "I-Shape / Wide Flange":
+            dim_col1, dim_col2 = st.columns(2)
+
+            with dim_col1:
+                b = st.number_input(
+                    "Flange Width b (in)",
+                    min_value=0.2,
+                    value=8.0,
+                    step=0.5,
+                    key="builder_i_b"
+                )
+
+                tw = st.number_input(
+                    "Web Thickness tw (in)",
+                    min_value=0.05,
+                    value=0.4,
+                    step=0.05,
+                    key="builder_i_tw"
+                )
+
+            with dim_col2:
+                h = st.number_input(
+                    "Total Height h (in)",
+                    min_value=0.2,
+                    value=16.0,
+                    step=0.5,
+                    key="builder_i_h"
+                )
+
+                tf = st.number_input(
+                    "Flange Thickness tf (in)",
+                    min_value=0.05,
+                    value=0.6,
+                    step=0.05,
+                    key="builder_i_tf"
+                )
+
+            h_web = max(0.01, h - 2.0 * tf)
+
+            calculated_I = (
+                tw * h_web**3 / 12.0
+                + 2.0 * (
+                    b * tf**3 / 12.0
+                    + b * tf * ((h - tf) / 2.0) ** 2
+                )
+            )
+
+            calculated_S = calculated_I / (h / 2.0)
+            calculated_A = 2.0 * b * tf + tw * h_web
+
+        elif shape_choice == "Solid Circle":
+            diameter = st.number_input(
+                "Diameter d (in)",
+                min_value=0.1,
+                value=8.0,
+                step=0.5,
+                key="builder_circle_d"
+            )
+
+            calculated_I = np.pi * diameter**4 / 64.0
+            calculated_S = calculated_I / (diameter / 2.0)
+            calculated_A = np.pi * diameter**2 / 4.0
+
+        else:
+            dim_col1, dim_col2 = st.columns(2)
+
+            with dim_col1:
+                diameter = st.number_input(
+                    "Outer Diameter D (in)",
+                    min_value=0.2,
+                    value=8.0,
+                    step=0.5,
+                    key="builder_tube_d"
+                )
+
+            with dim_col2:
+                thickness = st.number_input(
+                    "Wall Thickness t (in)",
+                    min_value=0.05,
+                    value=0.5,
+                    step=0.05,
+                    key="builder_tube_t"
+                )
+
+            inner_diameter = max(0.01, diameter - 2.0 * thickness)
+
+            calculated_I = (
+                np.pi
+                * (diameter**4 - inner_diameter**4)
+                / 64.0
+            )
+
+            calculated_S = calculated_I / (diameter / 2.0)
+
+            calculated_A = (
+                np.pi
+                * (diameter**2 - inner_diameter**2)
+                / 4.0
+            )
+
+        # Preview and calculated values
+        preview_col, values_col = st.columns([1, 1])
+
+        with preview_col:
+            st.markdown("### Section Preview")
+
+            preview_icons = {
+                "Rectangular (Solid)": "▰",
+                "Hollow Box / Tube": "▢",
+                "I-Shape / Wide Flange": "工",
+                "Solid Circle": "●",
+                "Round Tube": "◉",
+            }
+
+            st.markdown(
+                f"""
+                <div style="
+                    border:1px solid #d7dde5;
+                    border-radius:8px;
+                    min-height:190px;
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    background:#ffffff;
+                    font-size:92px;
+                ">
+                    {preview_icons[shape_choice]}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        with values_col:
+            st.markdown("### Calculated Properties")
+            st.metric("Moment of Inertia, Iz", f"{calculated_I:,.2f} in⁴")
+            st.metric("Section Modulus, S", f"{calculated_S:,.2f} in³")
+            st.metric("Cross-Section Area", f"{calculated_A:,.2f} in²")
+
+        st.markdown("---")
+        st.subheader("Material")
+
+        material_category = st.selectbox(
+            "Material Category",
+            ["Steel & Metals", "Wood & Timber", "Custom"],
+            key="builder_material_category"
         )
 
-    with properties_tab:
-        st.subheader("Section and Material Properties")
-
-        prop_col1, prop_col2 = st.columns(2)
-
-        with prop_col1:
-            st.session_state.custom_Iz = st.number_input(
-                "Moment of Inertia, Iz (in⁴)",
-                min_value=0.01,
-                value=float(st.session_state.custom_Iz),
-                step=10.0
+        if material_category == "Steel & Metals":
+            material_choice = st.selectbox(
+                "Select Material",
+                [
+                    "A36 Steel",
+                    "A992 Steel",
+                    "Aluminum 6061-T6"
+                ],
+                key="builder_metal_choice"
             )
 
-            st.session_state.custom_S = st.number_input(
-                "Section Modulus, S (in³)",
-                min_value=0.01,
-                value=float(st.session_state.custom_S),
-                step=1.0
+            if material_choice == "A36 Steel":
+                material_name = "A36 Steel"
+                material_strength = 36.0
+                material_E = 29000.0
+
+            elif material_choice == "A992 Steel":
+                material_name = "A992 Steel"
+                material_strength = 50.0
+                material_E = 29000.0
+
+            else:
+                material_name = "Aluminum 6061-T6"
+                material_strength = 35.0
+                material_E = 10000.0
+
+        elif material_category == "Wood & Timber":
+            material_choice = st.selectbox(
+                "Select Wood",
+                [
+                    "Douglas Fir-Larch No.1",
+                    "Southern Pine No.1",
+                    "Hem-Fir No.1/No.2"
+                ],
+                key="builder_wood_choice"
             )
 
-            st.session_state.custom_A_web = st.number_input(
-                "Effective Shear Area (in²)",
-                min_value=0.01,
-                value=float(st.session_state.custom_A_web),
-                step=1.0
+            if material_choice == "Douglas Fir-Larch No.1":
+                material_name = material_choice
+                material_strength = 1.5
+                material_E = 1600.0
+
+            elif material_choice == "Southern Pine No.1":
+                material_name = material_choice
+                material_strength = 1.7
+                material_E = 1800.0
+
+            else:
+                material_name = material_choice
+                material_strength = 1.2
+                material_E = 1400.0
+
+        else:
+            material_name = st.text_input(
+                "Material Name",
+                value=st.session_state.custom_material_name,
+                key="builder_custom_material_name"
             )
 
-        with prop_col2:
-            st.session_state.custom_E = st.number_input(
-                "Young's Modulus, E (ksi)",
-                min_value=1.0,
-                value=float(st.session_state.custom_E),
-                step=100.0
-            )
-
-            st.session_state.custom_yield_strength = st.number_input(
+            material_strength = st.number_input(
                 "Yield / Allowable Strength (ksi)",
                 min_value=0.01,
                 value=float(st.session_state.custom_yield_strength),
-                step=1.0
+                step=1.0,
+                key="builder_custom_strength"
             )
 
-            st.session_state.custom_factor_of_safety = st.number_input(
-                "Factor of Safety",
-                min_value=0.1,
-                value=float(st.session_state.custom_factor_of_safety),
-                step=0.1
+            material_E = st.number_input(
+                "Young's Modulus E (ksi)",
+                min_value=1.0,
+                value=float(st.session_state.custom_E),
+                step=100.0,
+                key="builder_custom_E"
             )
+
+        material_fos = st.number_input(
+            "Factor of Safety",
+            min_value=0.1,
+            value=float(st.session_state.custom_factor_of_safety),
+            step=0.1,
+            key="builder_material_fos"
+        )
+
+        if st.button(
+            "💾 Save Section",
+            type="primary",
+            use_container_width=True,
+            key="save_complete_section"
+        ):
+            st.session_state.selected_section_name = shape_choice
+            st.session_state.custom_Iz = float(calculated_I)
+            st.session_state.custom_S = float(calculated_S)
+            st.session_state.custom_A_web = float(calculated_A)
+            st.session_state.custom_material_name = material_name
+            st.session_state.custom_yield_strength = float(material_strength)
+            st.session_state.custom_E = float(material_E)
+            st.session_state.custom_factor_of_safety = float(material_fos)
+
+            st.success(
+                f"{shape_choice} with {material_name} was saved."
+            )
+
+    # =====================================================
+    # ADVANCED PROPERTIES
+    # =====================================================
+    with advanced_tab:
+        st.subheader("Saved Section and Material Properties")
+
+        st.info(
+            f"Current saved section: "
+            f"{st.session_state.selected_section_name}"
+        )
+
+        st.session_state.custom_Iz = st.number_input(
+            "Moment of Inertia, Iz (in⁴)",
+            min_value=0.01,
+            value=float(st.session_state.custom_Iz),
+            step=10.0,
+            key="advanced_Iz"
+        )
+
+        st.session_state.custom_S = st.number_input(
+            "Section Modulus, S (in³)",
+            min_value=0.01,
+            value=float(st.session_state.custom_S),
+            step=1.0,
+            key="advanced_S"
+        )
+
+        st.session_state.custom_A_web = st.number_input(
+            "Effective Shear Area (in²)",
+            min_value=0.01,
+            value=float(st.session_state.custom_A_web),
+            step=1.0,
+            key="advanced_A"
+        )
+
+        st.session_state.custom_E = st.number_input(
+            "Young's Modulus, E (ksi)",
+            min_value=1.0,
+            value=float(st.session_state.custom_E),
+            step=100.0,
+            key="advanced_E"
+        )
 
         st.session_state.custom_material_name = st.text_input(
             "Material Name",
-            value=st.session_state.custom_material_name
+            value=st.session_state.custom_material_name,
+            key="advanced_material"
         )
 
-        st.markdown(
-            "<div style='text-align:center;font-size:22px;font-weight:700;'>OR</div>",
-            unsafe_allow_html=True
+        st.session_state.custom_yield_strength = st.number_input(
+            "Yield / Allowable Strength (ksi)",
+            min_value=0.01,
+            value=float(st.session_state.custom_yield_strength),
+            step=1.0,
+            key="advanced_strength"
         )
 
-        builder_b = st.number_input(
-            "Rectangular Width b (in)",
+        st.session_state.custom_factor_of_safety = st.number_input(
+            "Factor of Safety",
             min_value=0.1,
-            value=8.0,
-            step=0.5
+            value=float(st.session_state.custom_factor_of_safety),
+            step=0.1,
+            key="advanced_fos"
         )
 
-        builder_h = st.number_input(
-            "Rectangular Height h (in)",
-            min_value=0.1,
-            value=16.0,
-            step=0.5
+        st.success(
+            "Changes in this tab are saved automatically."
         )
 
-        calculated_Iz = builder_b * builder_h**3 / 12.0
-        calculated_S = calculated_Iz / (builder_h / 2.0)
-        calculated_A = builder_b * builder_h
-
-        st.latex(r"I_z=\frac{bh^3}{12}")
-        st.latex(r"S=\frac{I}{h/2}")
-
-        st.write(f"Calculated Iz = {calculated_Iz:,.2f} in⁴")
-        st.write(f"Calculated S = {calculated_S:,.2f} in³")
-        st.write(f"Calculated Area = {calculated_A:,.2f} in²")
-
-        if st.button(
-            "Use Calculated Rectangular Properties",
-            type="primary",
-            use_container_width=True
-        ):
-            st.session_state.custom_Iz = calculated_Iz
-            st.session_state.custom_S = calculated_S
-            st.session_state.custom_A_web = calculated_A
-            st.session_state.selected_section_name = "Rectangular"
-            st.success("Calculated rectangular properties saved.")
-
+    # =====================================================
+    # AMERICAN LIBRARY PLACEHOLDER
+    # =====================================================
     with library_tab:
         st.subheader("American Section Library")
 
         st.selectbox(
             "Section Family",
-            ["W-Shape", "C-Channel", "L-Angle", "HSS"]
+            ["W-Shape", "C-Channel", "L-Angle", "HSS"],
+            key="builder_library_family"
         )
 
         st.text_input(
             "Search Section",
-            placeholder="Example: W12x26"
+            placeholder="Example: W12x26",
+            key="builder_library_search"
         )
 
         st.info(
-            "The full AISC database is not included in this educational version."
+            "The complete AISC section database is not included "
+            "in this educational version."
         )
 
 
