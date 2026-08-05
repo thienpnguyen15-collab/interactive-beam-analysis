@@ -704,12 +704,18 @@ with st.sidebar:
                 key=f"load_case_{i}"
             )
 
-            load_direction = st.radio(
+            direction_display = st.radio(
                 "Direction",
-                ["Down", "Up", "Angled"],
+                ["⬇ Down", "⬆ Up", "↙ Angled"],
                 horizontal=True,
                 key=f"load_direction_{i}"
             )
+
+            load_direction = {
+                "⬇ Down": "Down",
+                "⬆ Up": "Up",
+                "↙ Angled": "Angled",
+            }[direction_display]
 
             if "Pounds" in force_unit:
                 input_magnitude_lb = st.number_input(
@@ -825,38 +831,44 @@ with st.sidebar:
             )
 
     # ======================================================
-    # MOVING LOAD
+    # CUSTOM LOAD
     # ======================================================
-    st.subheader("🚗 Moving Load Simulation")
+    st.subheader("➕ Custom Load")
 
     enable_walker = st.toggle(
-        "Enable Moving Load",
+        "Enable Custom Load",
         value=True
     )
 
     if enable_walker:
         moving_case = st.selectbox(
-            "Moving Load Case",
+            "Load Case",
             [
-                "Pedestrian",
                 "Live",
+                "Pedestrian",
                 "Vehicle",
                 "Wind",
                 "Earthquake",
+                "Tension / Pull",
+                "Compression / Push",
                 "Other"
             ],
-            index=0
+            index=1
         )
 
         load_type = st.selectbox(
-            "Moving Object",
+            "Load Type",
             [
                 "🚶 Pedestrian (~180 lbs)",
                 "🚲 Bicycle + Rider (~250 lbs)",
                 "🛒 Cart / Hand Truck (~500 lbs)",
                 "🚙 Small Vehicle Wheel Load (~2,000 lbs)",
                 "🚜 Forklift / Heavy Cart (~3,000 lbs)",
-                "⚙️ Custom Moving Load"
+                "🪢 Tension / Pulling Force",
+                "🧱 Compression / Pushing Force",
+                "🌬️ Wind Force",
+                "🌎 Earthquake Force",
+                "⚙️ Fully Custom Load"
             ]
         )
 
@@ -875,19 +887,44 @@ with st.sidebar:
         elif "Forklift" in load_type:
             default_wt_lb = 3000.0
             icon_str = "🚜"
+        elif "Tension" in load_type:
+            default_wt_lb = 1000.0
+            icon_str = "🪢"
+            moving_case = "Tension / Pull"
+        elif "Compression" in load_type:
+            default_wt_lb = 1000.0
+            icon_str = "🧱"
+            moving_case = "Compression / Push"
+        elif "Wind" in load_type:
+            default_wt_lb = 500.0
+            icon_str = "🌬️"
+            moving_case = "Wind"
+        elif "Earthquake" in load_type:
+            default_wt_lb = 1000.0
+            icon_str = "🌎"
+            moving_case = "Earthquake"
         else:
             default_wt_lb = 1000.0
             icon_str = "⚙️"
 
-        moving_direction = st.radio(
-            "Moving Load Direction",
-            ["Down", "Up", "Angled"],
-            horizontal=True
+        st.markdown("**Direction:**")
+
+        moving_direction_display = st.radio(
+            "Custom Load Direction",
+            ["⬇ Down", "⬆ Up", "↙ Angled"],
+            horizontal=True,
+            label_visibility="collapsed"
         )
+
+        moving_direction = {
+            "⬇ Down": "Down",
+            "⬆ Up": "Up",
+            "↙ Angled": "Angled",
+        }[moving_direction_display]
 
         if "Pounds" in force_unit:
             moving_input_lb = st.number_input(
-                "Moving Load Magnitude (lbs)",
+                "Load Magnitude (lbs)",
                 min_value=1.0,
                 value=default_wt_lb,
                 step=50.0
@@ -895,7 +932,7 @@ with st.sidebar:
             moving_input_kip = moving_input_lb / 1000.0
         elif st.session_state.unit_system == "Metric":
             moving_input_kn = st.number_input(
-                "Moving Load Magnitude (kN)",
+                "Load Magnitude (kN)",
                 min_value=0.01,
                 value=default_wt_lb * 0.004448221615,
                 step=0.5
@@ -903,7 +940,7 @@ with st.sidebar:
             moving_input_kip = moving_input_kn / 4.448221615
         else:
             moving_input_kip = st.number_input(
-                "Moving Load Magnitude (kips)",
+                "Load Magnitude (kips)",
                 min_value=0.001,
                 value=default_wt_lb / 1000.0,
                 step=0.1
@@ -911,25 +948,36 @@ with st.sidebar:
 
         moving_angle_deg = 90.0
         moving_angled_vertical_direction = "Downward"
+        moving_horizontal_direction = "Right"
 
         if moving_direction == "Angled":
             moving_angle_deg = st.slider(
-                "Moving Load Angle from Beam Axis (degrees)",
+                "Angle from Beam Axis (degrees)",
                 min_value=0.0,
                 max_value=90.0,
                 value=45.0,
                 step=1.0
             )
 
-            moving_angled_vertical_direction = st.radio(
-                "Moving Angled Vertical Direction",
-                ["Downward", "Upward"],
-                horizontal=True
-            )
+            angle_col1, angle_col2 = st.columns(2)
+
+            with angle_col1:
+                moving_angled_vertical_direction = st.radio(
+                    "Vertical Direction",
+                    ["Downward", "Upward"],
+                    horizontal=True
+                )
+
+            with angle_col2:
+                moving_horizontal_direction = st.radio(
+                    "Horizontal Direction",
+                    ["Left", "Right"],
+                    horizontal=True
+                )
 
         if "Feet" in len_unit:
             walker_pos_ft = st.slider(
-                "Moving Position (ft)",
+                "Load Position (ft)",
                 min_value=0.0,
                 max_value=float(L / 12.0),
                 value=float(L / 24.0),
@@ -938,7 +986,7 @@ with st.sidebar:
             walker_pos = walker_pos_ft * 12.0
         elif "Meters" in len_unit:
             walker_pos_m = st.slider(
-                "Moving Position (m)",
+                "Load Position (m)",
                 min_value=0.0,
                 max_value=float(L / 39.37007874),
                 value=float(L / 78.74015748),
@@ -947,7 +995,7 @@ with st.sidebar:
             walker_pos = walker_pos_m * 39.37007874
         else:
             walker_pos = st.slider(
-                "Moving Position (in)",
+                "Load Position (in)",
                 min_value=0.0,
                 max_value=float(L),
                 value=float(L / 2.0),
@@ -962,9 +1010,15 @@ with st.sidebar:
             moving_horizontal_component = 0.0
         else:
             moving_angle_rad = np.deg2rad(moving_angle_deg)
-            moving_vertical_abs = moving_input_kip * np.sin(moving_angle_rad)
-            moving_horizontal_component = (
-                moving_input_kip * np.cos(moving_angle_rad)
+
+            moving_vertical_abs = (
+                moving_input_kip
+                * np.sin(moving_angle_rad)
+            )
+
+            moving_horizontal_abs = (
+                moving_input_kip
+                * np.cos(moving_angle_rad)
             )
 
             walker_load = (
@@ -973,19 +1027,34 @@ with st.sidebar:
                 else -moving_vertical_abs
             )
 
-            st.caption(
-                f"Moving vertical component = {abs(walker_load):.3f} kip; "
-                f"horizontal component = {moving_horizontal_component:.3f} kip."
+            moving_horizontal_component = (
+                moving_horizontal_abs
+                if moving_horizontal_direction == "Right"
+                else -moving_horizontal_abs
             )
+
+            st.caption(
+                f"Vertical component = {abs(walker_load):.3f} kip; "
+                f"horizontal component = "
+                f"{abs(moving_horizontal_component):.3f} kip "
+                f"toward {moving_horizontal_direction.lower()}."
+            )
+
+        st.info(
+            "SFD, BMD, deflection, and bending checks use the vertical "
+            "component. The horizontal component is displayed for future "
+            "axial-force analysis."
+        )
 
     else:
         walker_load = 0.0
         walker_pos = 0.0
-        icon_str = "🚗"
+        icon_str = "⚙️"
         moving_case = "None"
         moving_direction = "Down"
         moving_angle_deg = 90.0
         moving_angled_vertical_direction = "Downward"
+        moving_horizontal_direction = "Right"
         moving_horizontal_component = 0.0
 
     st.subheader("2. Applied Moments")
@@ -1138,7 +1207,7 @@ for i, location in enumerate(x_load, start=1):
         )
 
 if enable_walker and (walker_pos < 0 or walker_pos > L):
-    input_errors.append("The moving load must be located on the beam.")
+    input_errors.append("The custom load must be located on the beam.")
 
 if enable_udl:
     if x_end <= x_start:
@@ -1533,11 +1602,18 @@ if enable_walker:
     )
 
     if moving_direction == "Angled":
-        moving_symbol = (
-            "↘"
-            if moving_angled_vertical_direction == "Downward"
-            else "↗"
-        )
+        if moving_angled_vertical_direction == "Downward":
+            moving_symbol = (
+                "↘"
+                if moving_horizontal_direction == "Right"
+                else "↙"
+            )
+        else:
+            moving_symbol = (
+                "↗"
+                if moving_horizontal_direction == "Right"
+                else "↖"
+            )
         moving_label = (
             f"{moving_symbol} {moving_label} @ {moving_angle_deg:.0f}°"
         )
@@ -1775,11 +1851,18 @@ if enable_walker:
     )
 
     if moving_direction == "Angled":
-        moving_symbol = (
-            "↘"
-            if moving_angled_vertical_direction == "Downward"
-            else "↗"
-        )
+        if moving_angled_vertical_direction == "Downward":
+            moving_symbol = (
+                "↘"
+                if moving_horizontal_direction == "Right"
+                else "↙"
+            )
+        else:
+            moving_symbol = (
+                "↗"
+                if moving_horizontal_direction == "Right"
+                else "↖"
+            )
         moving_text = (
             f"{moving_symbol} {moving_text} @ {moving_angle_deg:.0f}°"
         )
@@ -1973,7 +2056,7 @@ with st.expander("Show Detailed Calculations", expanded=False):
 
     if enable_walker:
         st.write(
-            f"Moving Load [{moving_case}] = "
+            f"Custom Load [{moving_case}] = "
             f"{abs(walker_load):.3f} kip vertical component "
             f"at x = {walker_pos / 12.0:.2f} ft from A"
         )
