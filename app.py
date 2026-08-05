@@ -1126,7 +1126,23 @@ with st.sidebar:
         moment_magnitude_kipin = 0.0
 
     st.subheader("3. Distributed Load (UDL)")
-    enable_udl = st.toggle("Enable Distributed Load (UDL)", value=False)
+    enable_udl = st.toggle(
+        "Enable Distributed Load (UDL)",
+        value=False,
+        key="enable_udl"
+    )
+
+    # Keep UDL start/end values independent and valid.
+    if "udl_start_display" not in st.session_state:
+        st.session_state.udl_start_display = 0.0
+
+    if "udl_end_display" not in st.session_state:
+        if st.session_state.unit_system == "Metric":
+            st.session_state.udl_end_display = float(L / 39.37007874)
+        elif "Feet" in len_unit:
+            st.session_state.udl_end_display = float(L / 12.0)
+        else:
+            st.session_state.udl_end_display = float(L)
 
     # Internal UDL intensity is always stored in kip/in.
     # The sidebar input follows the active display units.
@@ -1148,22 +1164,33 @@ with st.sidebar:
             udl_display_unit = "kN/m"
             udl_display_intensity = w_input
 
+            max_udl_position = float(L / 39.37007874)
+
+            st.session_state.udl_start_display = min(
+                max(st.session_state.udl_start_display, 0.0),
+                max_udl_position
+            )
+            st.session_state.udl_end_display = min(
+                max(st.session_state.udl_end_display, 0.0),
+                max_udl_position
+            )
+
             col_u1, col_u2 = st.columns(2)
             with col_u1:
                 x_start_display = st.number_input(
                     "Start x₁ (m)",
                     min_value=0.0,
-                    max_value=float(L / 39.37007874),
-                    value=0.0,
-                    step=0.1
+                    max_value=max_udl_position,
+                    step=0.1,
+                    key="udl_start_display"
                 )
             with col_u2:
                 x_end_display = st.number_input(
                     "End x₂ (m)",
                     min_value=0.0,
-                    max_value=float(L / 39.37007874),
-                    value=float(L / 39.37007874),
-                    step=0.1
+                    max_value=max_udl_position,
+                    step=0.1,
+                    key="udl_end_display"
                 )
 
             x_start = x_start_display * 39.37007874
@@ -1196,22 +1223,33 @@ with st.sidebar:
 
             udl_display_intensity = w_input
 
+            max_udl_position = float(L / 12.0)
+
+            st.session_state.udl_start_display = min(
+                max(st.session_state.udl_start_display, 0.0),
+                max_udl_position
+            )
+            st.session_state.udl_end_display = min(
+                max(st.session_state.udl_end_display, 0.0),
+                max_udl_position
+            )
+
             col_u1, col_u2 = st.columns(2)
             with col_u1:
                 x_start_display = st.number_input(
                     "Start x₁ (ft)",
                     min_value=0.0,
-                    max_value=float(L / 12.0),
-                    value=0.0,
-                    step=0.5
+                    max_value=max_udl_position,
+                    step=0.5,
+                    key="udl_start_display"
                 )
             with col_u2:
                 x_end_display = st.number_input(
                     "End x₂ (ft)",
                     min_value=0.0,
-                    max_value=float(L / 12.0),
-                    value=float(L / 12.0),
-                    step=0.5
+                    max_value=max_udl_position,
+                    step=0.5,
+                    key="udl_end_display"
                 )
 
             x_start = x_start_display * 12.0
@@ -1243,22 +1281,33 @@ with st.sidebar:
 
             udl_display_intensity = w_input
 
+            max_udl_position = float(L)
+
+            st.session_state.udl_start_display = min(
+                max(st.session_state.udl_start_display, 0.0),
+                max_udl_position
+            )
+            st.session_state.udl_end_display = min(
+                max(st.session_state.udl_end_display, 0.0),
+                max_udl_position
+            )
+
             col_u1, col_u2 = st.columns(2)
             with col_u1:
                 x_start_display = st.number_input(
                     "Start x₁ (in)",
                     min_value=0.0,
-                    max_value=float(L),
-                    value=0.0,
-                    step=1.0
+                    max_value=max_udl_position,
+                    step=1.0,
+                    key="udl_start_display"
                 )
             with col_u2:
                 x_end_display = st.number_input(
                     "End x₂ (in)",
                     min_value=0.0,
-                    max_value=float(L),
-                    value=float(L),
-                    step=1.0
+                    max_value=max_udl_position,
+                    step=1.0,
+                    key="udl_end_display"
                 )
 
             x_start = x_start_display
@@ -2362,8 +2411,8 @@ with st.expander("Show Detailed Calculations", expanded=False):
         st.latex(r"S=\frac{I}{h/2}")
         st.write(f"S = {S:,.2f} in³")
     else:
-        st.write(f"Moment of Inertia, I = {I:,.2f} in⁴")
-        st.write(f"Section Modulus, S = {S:,.2f} in³")
+        st.write(f"**Moment of Inertia, I = {I:,.2f} in⁴**")
+        st.write(f"**Section Modulus, S = {S:,.2f} in³**")
 
     # Step 8: Maximum bending stress
     st.markdown("### Step 8: Maximum Bending Stress")
