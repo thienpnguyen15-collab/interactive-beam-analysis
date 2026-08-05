@@ -671,43 +671,207 @@ with st.sidebar:
         support_B = st.selectbox("Support B (Right)", support_options, index=1)
 
     st.subheader("1. Point Loads")
-    n_loads = st.number_input("Number of Point Loads", min_value=0, max_value=5, value=1)
 
-    P, x_load = [], []
+    n_loads = st.number_input(
+        "Number of Point Loads",
+        min_value=0,
+        max_value=8,
+        value=1
+    )
+
+    # P stores the signed vertical component in kips:
+    # positive = downward, negative = upward.
+    P = []
+    x_load = []
+    point_load_meta = []
+
+    load_case_options = [
+        "Dead",
+        "Live",
+        "Wind",
+        "Earthquake",
+        "Pedestrian",
+        "Vehicle",
+        "Other"
+    ]
+
     for i in range(int(n_loads)):
-        with st.expander(f"Load P{i+1}", expanded=True):
+        with st.expander(f"Load P{i + 1}", expanded=True):
+            load_case = st.selectbox(
+                "Load Case",
+                load_case_options,
+                index=1,
+                key=f"load_case_{i}"
+            )
+
+            load_direction = st.radio(
+                "Direction",
+                ["Down", "Up", "Angled"],
+                horizontal=True,
+                key=f"load_direction_{i}"
+            )
+
             if "Pounds" in force_unit:
-                p_val_lb = st.number_input(f"Magnitude P{i+1} (lbs)", min_value=10.0, value=5000.0, step=100.0, key=f"p_{i}")
-                p_val = p_val_lb / 1000.0
+                input_magnitude_lb = st.number_input(
+                    f"Magnitude P{i + 1} (lbs)",
+                    min_value=1.0,
+                    value=5000.0,
+                    step=100.0,
+                    key=f"p_{i}"
+                )
+                input_magnitude_kip = input_magnitude_lb / 1000.0
+            elif st.session_state.unit_system == "Metric":
+                input_magnitude_kn = st.number_input(
+                    f"Magnitude P{i + 1} (kN)",
+                    min_value=0.01,
+                    value=22.24,
+                    step=1.0,
+                    key=f"p_{i}"
+                )
+                input_magnitude_kip = input_magnitude_kn / 4.448221615
             else:
-                p_val = st.number_input(f"Magnitude P{i+1} (kips)", min_value=0.01, value=5.0, step=0.5, key=f"p_{i}")
+                input_magnitude_kip = st.number_input(
+                    f"Magnitude P{i + 1} (kips)",
+                    min_value=0.01,
+                    value=5.0,
+                    step=0.5,
+                    key=f"p_{i}"
+                )
+
+            angle_deg = 90.0
+            angled_vertical_direction = "Downward"
+
+            if load_direction == "Angled":
+                angle_deg = st.slider(
+                    "Angle from Beam Axis (degrees)",
+                    min_value=0.0,
+                    max_value=90.0,
+                    value=45.0,
+                    step=1.0,
+                    key=f"load_angle_{i}"
+                )
+
+                angled_vertical_direction = st.radio(
+                    "Angled Vertical Direction",
+                    ["Downward", "Upward"],
+                    horizontal=True,
+                    key=f"angled_vertical_direction_{i}"
+                )
 
             if "Feet" in len_unit:
-                x_val_ft = st.number_input(f"Position x{i+1} from A (ft)", min_value=0.0, max_value=float(L/12.0), value=4.0, key=f"x_{i}")
+                x_val_ft = st.number_input(
+                    f"Position x{i + 1} from A (ft)",
+                    min_value=0.0,
+                    max_value=float(L / 12.0),
+                    value=min(4.0, float(L / 12.0)),
+                    key=f"x_{i}"
+                )
                 x_val = x_val_ft * 12.0
+            elif "Meters" in len_unit:
+                x_val_m = st.number_input(
+                    f"Position x{i + 1} from A (m)",
+                    min_value=0.0,
+                    max_value=float(L / 39.37007874),
+                    value=min(1.2, float(L / 39.37007874)),
+                    key=f"x_{i}"
+                )
+                x_val = x_val_m * 39.37007874
             else:
-                x_val = st.number_input(f"Position x{i+1} from A (in)", min_value=0.0, max_value=float(L), value=48.0, key=f"x_{i}")
-            P.append(p_val)
+                x_val = st.number_input(
+                    f"Position x{i + 1} from A (in)",
+                    min_value=0.0,
+                    max_value=float(L),
+                    value=min(48.0, float(L)),
+                    key=f"x_{i}"
+                )
+
+            if load_direction == "Down":
+                vertical_component = input_magnitude_kip
+                horizontal_component = 0.0
+            elif load_direction == "Up":
+                vertical_component = -input_magnitude_kip
+                horizontal_component = 0.0
+            else:
+                angle_rad = np.deg2rad(angle_deg)
+                vertical_abs = input_magnitude_kip * np.sin(angle_rad)
+                horizontal_component = input_magnitude_kip * np.cos(angle_rad)
+
+                vertical_component = (
+                    vertical_abs
+                    if angled_vertical_direction == "Downward"
+                    else -vertical_abs
+                )
+
+                st.caption(
+                    f"Vertical component = {abs(vertical_component):.3f} kip; "
+                    f"horizontal component = {horizontal_component:.3f} kip. "
+                    "Only the vertical component is used for SFD, BMD, "
+                    "deflection, and bending checks."
+                )
+
+            P.append(vertical_component)
             x_load.append(x_val)
 
-    # Demo
+            point_load_meta.append(
+                {
+                    "case": load_case,
+                    "direction": load_direction,
+                    "angle_deg": angle_deg,
+                    "angled_vertical_direction": angled_vertical_direction,
+                    "input_magnitude_kip": input_magnitude_kip,
+                    "vertical_component_kip": vertical_component,
+                    "horizontal_component_kip": horizontal_component,
+                }
+            )
+
+    # ======================================================
+    # MOVING LOAD
+    # ======================================================
     st.subheader("🚗 Moving Load Simulation")
-    enable_walker = st.toggle("Enable Moving Load Simulation", value=True)
+
+    enable_walker = st.toggle(
+        "Enable Moving Load",
+        value=True
+    )
 
     if enable_walker:
-        load_type = st.selectbox("Select Moving Load Type", [
-            "🚶‍♂️ Walker / Pedestrian (~180 lbs)", 
-            "🛒 Cart / Hand Truck (~500 lbs)", 
-            "🚜 Forklift / Heavy Cart (~3,000 lbs)",
-            "⚙️ Custom Moving Load"
-        ])
-        
-        if "Walker" in load_type:
+        moving_case = st.selectbox(
+            "Moving Load Case",
+            [
+                "Pedestrian",
+                "Live",
+                "Vehicle",
+                "Wind",
+                "Earthquake",
+                "Other"
+            ],
+            index=0
+        )
+
+        load_type = st.selectbox(
+            "Moving Object",
+            [
+                "🚶 Pedestrian (~180 lbs)",
+                "🚲 Bicycle + Rider (~250 lbs)",
+                "🛒 Cart / Hand Truck (~500 lbs)",
+                "🚙 Small Vehicle Wheel Load (~2,000 lbs)",
+                "🚜 Forklift / Heavy Cart (~3,000 lbs)",
+                "⚙️ Custom Moving Load"
+            ]
+        )
+
+        if "Pedestrian" in load_type:
             default_wt_lb = 180.0
-            icon_str = "🚶‍♂️"
-        elif "Cart" in load_type and "Hand" in load_type:
+            icon_str = "🚶"
+        elif "Bicycle" in load_type:
+            default_wt_lb = 250.0
+            icon_str = "🚲"
+        elif "Cart / Hand" in load_type:
             default_wt_lb = 500.0
             icon_str = "🛒"
+        elif "Small Vehicle" in load_type:
+            default_wt_lb = 2000.0
+            icon_str = "🚙"
         elif "Forklift" in load_type:
             default_wt_lb = 3000.0
             icon_str = "🚜"
@@ -715,21 +879,114 @@ with st.sidebar:
             default_wt_lb = 1000.0
             icon_str = "⚙️"
 
+        moving_direction = st.radio(
+            "Moving Load Direction",
+            ["Down", "Up", "Angled"],
+            horizontal=True
+        )
+
         if "Pounds" in force_unit:
-            walker_wt_lb = st.number_input("Moving Load Weight (lbs)", min_value=10.0, value=default_wt_lb, step=50.0)
-            walker_load = walker_wt_lb / 1000.0
+            moving_input_lb = st.number_input(
+                "Moving Load Magnitude (lbs)",
+                min_value=1.0,
+                value=default_wt_lb,
+                step=50.0
+            )
+            moving_input_kip = moving_input_lb / 1000.0
+        elif st.session_state.unit_system == "Metric":
+            moving_input_kn = st.number_input(
+                "Moving Load Magnitude (kN)",
+                min_value=0.01,
+                value=default_wt_lb * 0.004448221615,
+                step=0.5
+            )
+            moving_input_kip = moving_input_kn / 4.448221615
         else:
-            walker_load = st.number_input("Moving Load Weight (kips)", min_value=0.01, value=default_wt_lb/1000.0, step=0.1)
-            
+            moving_input_kip = st.number_input(
+                "Moving Load Magnitude (kips)",
+                min_value=0.001,
+                value=default_wt_lb / 1000.0,
+                step=0.1
+            )
+
+        moving_angle_deg = 90.0
+        moving_angled_vertical_direction = "Downward"
+
+        if moving_direction == "Angled":
+            moving_angle_deg = st.slider(
+                "Moving Load Angle from Beam Axis (degrees)",
+                min_value=0.0,
+                max_value=90.0,
+                value=45.0,
+                step=1.0
+            )
+
+            moving_angled_vertical_direction = st.radio(
+                "Moving Angled Vertical Direction",
+                ["Downward", "Upward"],
+                horizontal=True
+            )
+
         if "Feet" in len_unit:
-            walker_pos_ft = st.slider("Position x_moving (ft)", min_value=0.0, max_value=float(L/12.0), value=float(L/24.0), step=0.5)
+            walker_pos_ft = st.slider(
+                "Moving Position (ft)",
+                min_value=0.0,
+                max_value=float(L / 12.0),
+                value=float(L / 24.0),
+                step=0.5
+            )
             walker_pos = walker_pos_ft * 12.0
+        elif "Meters" in len_unit:
+            walker_pos_m = st.slider(
+                "Moving Position (m)",
+                min_value=0.0,
+                max_value=float(L / 39.37007874),
+                value=float(L / 78.74015748),
+                step=0.1
+            )
+            walker_pos = walker_pos_m * 39.37007874
         else:
-            walker_pos = st.slider("Position x_moving (in)", min_value=0.0, max_value=float(L), value=float(L/2.0), step=1.0)
+            walker_pos = st.slider(
+                "Moving Position (in)",
+                min_value=0.0,
+                max_value=float(L),
+                value=float(L / 2.0),
+                step=1.0
+            )
+
+        if moving_direction == "Down":
+            walker_load = moving_input_kip
+            moving_horizontal_component = 0.0
+        elif moving_direction == "Up":
+            walker_load = -moving_input_kip
+            moving_horizontal_component = 0.0
+        else:
+            moving_angle_rad = np.deg2rad(moving_angle_deg)
+            moving_vertical_abs = moving_input_kip * np.sin(moving_angle_rad)
+            moving_horizontal_component = (
+                moving_input_kip * np.cos(moving_angle_rad)
+            )
+
+            walker_load = (
+                moving_vertical_abs
+                if moving_angled_vertical_direction == "Downward"
+                else -moving_vertical_abs
+            )
+
+            st.caption(
+                f"Moving vertical component = {abs(walker_load):.3f} kip; "
+                f"horizontal component = {moving_horizontal_component:.3f} kip."
+            )
+
     else:
         walker_load = 0.0
         walker_pos = 0.0
         icon_str = "🚗"
+        moving_case = "None"
+        moving_direction = "Down"
+        moving_angle_deg = 90.0
+        moving_angled_vertical_direction = "Downward"
+        moving_horizontal_component = 0.0
 
     st.subheader("2. Applied Moments")
 
@@ -1220,37 +1477,93 @@ fig_problem.add_annotation(x=0, y=0.25, text="A", showarrow=False, font=dict(siz
 fig_problem.add_annotation(x=L, y=0.25, text="B", showarrow=False, font=dict(size=14, color="black"))
 
 # Point loads
-for i, (p_val, x_val) in enumerate(zip(P, x_load)):
-    p_label = (f"P{i+1} = {p_val*1000:.0f} lbs" if "Pounds" in force_unit else f"P{i+1} = {p_val:.2f} kips")
+for i, (p_val, x_val, meta) in enumerate(
+    zip(P, x_load, point_load_meta)
+):
+    p_display = abs(p_val)
+
+    p_label = (
+        f"P{i + 1} [{meta['case']}] = {p_display * 1000:.0f} lbs"
+        if "Pounds" in force_unit
+        else f"P{i + 1} [{meta['case']}] = {p_display:.2f} kips"
+    )
+
+    arrow_tail_y = 0.95 if p_val >= 0 else -0.95
+
+    if meta["direction"] == "Angled":
+        angle_symbol = (
+            "↘"
+            if meta["angled_vertical_direction"] == "Downward"
+            else "↗"
+        )
+        p_label = (
+            f"{angle_symbol} {p_label} @ {meta['angle_deg']:.0f}°"
+        )
+
     fig_problem.add_annotation(
-        x=x_val, y=0,
-        ax=x_val, ay=0.95,
-        xref="x", yref="y",
-        axref="x", ayref="y",
+        x=x_val,
+        y=0,
+        ax=x_val,
+        ay=arrow_tail_y,
+        xref="x",
+        yref="y",
+        axref="x",
+        ayref="y",
         text=p_label,
         showarrow=True,
         arrowhead=2,
         arrowsize=1.2,
         arrowwidth=2.5,
         arrowcolor="#D32F2F",
-        font=dict(color="#D32F2F", size=11, family="Arial Black")
+        font=dict(
+            color="#D32F2F",
+            size=11,
+            family="Arial Black"
+        )
     )
 
 # Moving load
 if enable_walker:
-    moving_label = (f"{icon_str} {walker_load*1000:.0f} lbs" if "Pounds" in force_unit else f"{icon_str} {walker_load:.2f} kips")
+    moving_display = abs(walker_load)
+
+    moving_label = (
+        f"{icon_str} [{moving_case}] {moving_display * 1000:.0f} lbs"
+        if "Pounds" in force_unit
+        else f"{icon_str} [{moving_case}] {moving_display:.2f} kips"
+    )
+
+    if moving_direction == "Angled":
+        moving_symbol = (
+            "↘"
+            if moving_angled_vertical_direction == "Downward"
+            else "↗"
+        )
+        moving_label = (
+            f"{moving_symbol} {moving_label} @ {moving_angle_deg:.0f}°"
+        )
+
+    moving_tail_y = 1.15 if walker_load >= 0 else -1.15
+
     fig_problem.add_annotation(
-        x=walker_pos, y=0,
-        ax=walker_pos, ay=1.15,
-        xref="x", yref="y",
-        axref="x", ayref="y",
+        x=walker_pos,
+        y=0,
+        ax=walker_pos,
+        ay=moving_tail_y,
+        xref="x",
+        yref="y",
+        axref="x",
+        ayref="y",
         text=moving_label,
         showarrow=True,
         arrowhead=2,
         arrowsize=1.2,
         arrowwidth=2.5,
         arrowcolor="#2E7D32",
-        font=dict(color="#2E7D32", size=11, family="Arial Black")
+        font=dict(
+            color="#2E7D32",
+            size=11,
+            family="Arial Black"
+        )
     )
 
 # Applied moment
@@ -1406,29 +1719,93 @@ if "Fixed" in support_B and abs(MB_fix) > 1e-12:
     fig_fbd.add_annotation(x=0.96 * L, y=0.45, text=f"M_B = {MB_fix/12.0:.2f} kip-ft", showarrow=False, font=dict(color="#D32F2F", size=11, family="Arial Black"))
 
 # Concentrated point loads
-for i, (p_val, x_val) in enumerate(zip(P, x_load)):
-    p_label_text = (f"P{i+1} = {p_val*1000:.0f} lbs" if "Pounds" in force_unit else f"P{i+1} = {p_val:.2f} kips")
+for i, (p_val, x_val, meta) in enumerate(
+    zip(P, x_load, point_load_meta)
+):
+    p_display = abs(p_val)
+
+    p_label_text = (
+        f"P{i + 1} [{meta['case']}] = {p_display * 1000:.0f} lbs"
+        if "Pounds" in force_unit
+        else f"P{i + 1} [{meta['case']}] = {p_display:.2f} kips"
+    )
+
+    if meta["direction"] == "Angled":
+        angle_symbol = (
+            "↘"
+            if meta["angled_vertical_direction"] == "Downward"
+            else "↗"
+        )
+        p_label_text = (
+            f"{angle_symbol} {p_label_text} @ {meta['angle_deg']:.0f}°"
+        )
+
+    fbd_tail_y = 0.75 if p_val >= 0 else -0.75
+
     fig_fbd.add_annotation(
-        x=x_val, y=0,
-        ax=x_val, ay=0.75,
-        xref="x", yref="y",
-        axref="x", ayref="y",
+        x=x_val,
+        y=0,
+        ax=x_val,
+        ay=fbd_tail_y,
+        xref="x",
+        yref="y",
+        axref="x",
+        ayref="y",
         text=p_label_text,
-        showarrow=True, arrowhead=2, arrowsize=1.2, arrowwidth=2.5, arrowcolor="#1565C0",
-        font=dict(color="#1565C0", size=11, family="Arial Black")
+        showarrow=True,
+        arrowhead=2,
+        arrowsize=1.2,
+        arrowwidth=2.5,
+        arrowcolor="#1565C0",
+        font=dict(
+            color="#1565C0",
+            size=11,
+            family="Arial Black"
+        )
     )
 
 # Moving load
 if enable_walker:
-    moving_text = (f"{icon_str} {walker_load*1000:.0f} lbs" if "Pounds" in force_unit else f"{icon_str} {walker_load:.2f} kips")
+    moving_display = abs(walker_load)
+
+    moving_text = (
+        f"{icon_str} [{moving_case}] {moving_display * 1000:.0f} lbs"
+        if "Pounds" in force_unit
+        else f"{icon_str} [{moving_case}] {moving_display:.2f} kips"
+    )
+
+    if moving_direction == "Angled":
+        moving_symbol = (
+            "↘"
+            if moving_angled_vertical_direction == "Downward"
+            else "↗"
+        )
+        moving_text = (
+            f"{moving_symbol} {moving_text} @ {moving_angle_deg:.0f}°"
+        )
+
+    moving_fbd_tail_y = 1.0 if walker_load >= 0 else -1.0
+
     fig_fbd.add_annotation(
-        x=walker_pos, y=0,
-        ax=walker_pos, ay=1.0,
-        xref="x", yref="y",
-        axref="x", ayref="y",
+        x=walker_pos,
+        y=0,
+        ax=walker_pos,
+        ay=moving_fbd_tail_y,
+        xref="x",
+        yref="y",
+        axref="x",
+        ayref="y",
         text=moving_text,
-        showarrow=True, arrowhead=2, arrowsize=1.2, arrowwidth=2.5, arrowcolor="#2E7D32",
-        font=dict(color="#2E7D32", size=11, family="Arial Black")
+        showarrow=True,
+        arrowhead=2,
+        arrowsize=1.2,
+        arrowwidth=2.5,
+        arrowcolor="#2E7D32",
+        font=dict(
+            color="#2E7D32",
+            size=11,
+            family="Arial Black"
+        )
     )
 
 # Applied moment
@@ -1575,10 +1952,30 @@ with st.expander("Show Detailed Calculations", expanded=False):
     st.write(f"Beam Length, L = {L / 12.0:.2f} ft")
     st.write(f"Beam Length, L = {L:.2f} in")
 
-    for i, (load, location) in enumerate(zip(all_P, all_x)):
+    for i, (load, location) in enumerate(zip(P, x_load)):
+        meta = point_load_meta[i]
+
+        direction_text = (
+            meta["direction"]
+            if meta["direction"] != "Angled"
+            else (
+                f"Angled {meta['angled_vertical_direction']} "
+                f"at {meta['angle_deg']:.0f}°"
+            )
+        )
+
         st.write(
-            f"Load P{i + 1} = {load:.2f} kips "
-            f"at x{i + 1} = {location / 12.0:.2f} ft from A"
+            f"Load P{i + 1} [{meta['case']}] = "
+            f"{abs(load):.3f} kip vertical component, "
+            f"{direction_text}, at "
+            f"x{i + 1} = {location / 12.0:.2f} ft from A"
+        )
+
+    if enable_walker:
+        st.write(
+            f"Moving Load [{moving_case}] = "
+            f"{abs(walker_load):.3f} kip vertical component "
+            f"at x = {walker_pos / 12.0:.2f} ft from A"
         )
 
     if enable_udl and udl_length > 0:
