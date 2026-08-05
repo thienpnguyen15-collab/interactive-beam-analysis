@@ -1429,23 +1429,61 @@ max_m_index = int(np.argmax(np.abs(M))) if len(M) > 0 else 0
 max_m_location_in = float(x[max_m_index]) if len(x) > 0 else 0.0
 max_m_location_ft = max_m_location_in / 12.0
 
-dx = L / 999.0
+dx = x[1] - x[0]
 EI = E_modulus * I
+
 if EI > 0:
     curvature = M / EI
-    theta = np.cumsum(curvature) * dx
+
+    # First integration: curvature -> raw slope.
+    theta_raw = np.zeros_like(x)
+    theta_raw[1:] = np.cumsum(
+        0.5 * (curvature[1:] + curvature[:-1]) * dx
+    )
+
+    # Second integration: raw slope -> raw deflection.
+    deflection_raw = np.zeros_like(x)
+    deflection_raw[1:] = np.cumsum(
+        0.5 * (theta_raw[1:] + theta_raw[:-1]) * dx
+    )
+
     if is_cantilever and "Fixed" in support_A:
-        v_deflection = np.cumsum(theta) * dx
+        # Fixed at the left end:
+        # theta(0) = 0 and v(0) = 0.
+        theta = theta_raw
+        v_deflection = deflection_raw
+
     elif is_cantilever and "Fixed" in support_B:
-        theta_rev = theta - theta[-1]
-        v_deflection = np.cumsum(theta_rev) * dx
-        v_deflection -= v_deflection[-1]
+        # Right-fixed cantilever remains a simplified educational case.
+        # Apply zero deflection and zero rotation at x = L.
+        slope_constant = -theta_raw[-1]
+        deflection_constant = -(
+            deflection_raw[-1] + slope_constant * L
+        )
+
+        theta = theta_raw + slope_constant
+        v_deflection = (
+            deflection_raw
+            + slope_constant * x
+            + deflection_constant
+        )
+
     else:
-        theta -= theta[-1] * (x / L)
-        v_deflection = np.cumsum(theta) * dx
-        v_deflection -= v_deflection[0] * (1 - x/L) + v_deflection[-1] * (x/L)
+        # Simply supported boundary conditions:
+        # v(0) = 0 and v(L) = 0.
+        #
+        # The unknown integration constant is the initial slope C1.
+        # Since deflection_raw(0) = 0:
+        # 0 = deflection_raw(L) + C1*L
+        initial_slope = -deflection_raw[-1] / L
+
+        theta = theta_raw + initial_slope
+        v_deflection = deflection_raw + initial_slope * x
+
     max_deflection = np.max(np.abs(v_deflection))
+
 else:
+    theta = np.zeros_like(x)
     v_deflection = np.zeros_like(x)
     max_deflection = 0.0
 
@@ -2250,6 +2288,20 @@ with st.expander("Show Detailed Calculations", expanded=False):
         f"Maximum Calculated Deflection = "
         f"{max_deflection:.4f} in"
     )
+
+    if (
+        not is_cantilever
+        and not is_fixed_fixed
+        and not is_propped
+        and len(all_P) == 1
+        and not enable_udl
+        and not enable_moment
+    ):
+        st.caption(
+            "For a simply supported beam with one point load, "
+            "the numerical result should closely match the standard "
+            "closed-form beam formula."
+        )
 
     if max_deflection <= deflection_limit:
         st.success(
