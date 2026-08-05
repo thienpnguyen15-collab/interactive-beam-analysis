@@ -744,24 +744,31 @@ with st.sidebar:
                     key=f"p_{i}"
                 )
 
-            angle_deg = 90.0
-            angled_vertical_direction = "Downward"
-
-            if load_direction == "Angled":
-                angle_deg = st.slider(
-                    "Angle from Beam Axis (degrees)",
+            # Engineering angle convention:
+            # theta is measured counterclockwise from the positive beam axis (+x).
+            # 0° = right, 90° = up, 180° = left, 270° = down.
+            if load_direction == "Down":
+                angle_deg = 270.0
+            elif load_direction == "Up":
+                angle_deg = 90.0
+            else:
+                angle_deg = st.number_input(
+                    "Load Angle θ (degrees)",
                     min_value=0.0,
-                    max_value=90.0,
-                    value=45.0,
+                    max_value=360.0,
+                    value=315.0,
                     step=1.0,
-                    key=f"load_angle_{i}"
+                    key=f"load_angle_{i}",
+                    help=(
+                        "Angle is measured counterclockwise from the beam axis "
+                        "pointing to the right. Examples: 0° right, 90° up, "
+                        "180° left, 270° down."
+                    )
                 )
 
-                angled_vertical_direction = st.radio(
-                    "Angled Vertical Direction",
-                    ["Downward", "Upward"],
-                    horizontal=True,
-                    key=f"angled_vertical_direction_{i}"
+                st.caption(
+                    "Angle convention: 0° → right, 90° ↑ up, "
+                    "180° ← left, 270° ↓ down."
                 )
 
             if "Feet" in len_unit:
@@ -791,28 +798,38 @@ with st.sidebar:
                     key=f"x_{i}"
                 )
 
-            if load_direction == "Down":
-                vertical_component = input_magnitude_kip
-                horizontal_component = 0.0
-            elif load_direction == "Up":
-                vertical_component = -input_magnitude_kip
-                horizontal_component = 0.0
-            else:
-                angle_rad = np.deg2rad(angle_deg)
-                vertical_abs = input_magnitude_kip * np.sin(angle_rad)
-                horizontal_component = input_magnitude_kip * np.cos(angle_rad)
+            angle_rad = np.deg2rad(angle_deg)
 
-                vertical_component = (
-                    vertical_abs
-                    if angled_vertical_direction == "Downward"
-                    else -vertical_abs
+            # Standard Cartesian components.
+            horizontal_component = (
+                input_magnitude_kip * np.cos(angle_rad)
+            )
+            vertical_component_cartesian = (
+                input_magnitude_kip * np.sin(angle_rad)
+            )
+
+            # Existing beam calculations use positive values for downward loads.
+            vertical_component = -vertical_component_cartesian
+
+            if load_direction == "Angled":
+                horizontal_word = (
+                    "right"
+                    if horizontal_component >= 0
+                    else "left"
+                )
+
+                vertical_word = (
+                    "up"
+                    if vertical_component_cartesian >= 0
+                    else "down"
                 )
 
                 st.caption(
-                    f"Vertical component = {abs(vertical_component):.3f} kip; "
-                    f"horizontal component = {horizontal_component:.3f} kip. "
-                    "Only the vertical component is used for SFD, BMD, "
-                    "deflection, and bending checks."
+                    f"Fx = {abs(horizontal_component):.3f} kip "
+                    f"toward {horizontal_word}; "
+                    f"Fy = {abs(vertical_component_cartesian):.3f} kip "
+                    f"toward {vertical_word}. "
+                    "SFD, BMD, deflection, and bending checks use Fy."
                 )
 
             P.append(vertical_component)
@@ -823,7 +840,6 @@ with st.sidebar:
                     "case": load_case,
                     "direction": load_direction,
                     "angle_deg": angle_deg,
-                    "angled_vertical_direction": angled_vertical_direction,
                     "input_magnitude_kip": input_magnitude_kip,
                     "vertical_component_kip": vertical_component,
                     "horizontal_component_kip": horizontal_component,
@@ -946,34 +962,31 @@ with st.sidebar:
                 step=0.1
             )
 
-        moving_angle_deg = 90.0
-        moving_angled_vertical_direction = "Downward"
-        moving_horizontal_direction = "Right"
-
-        if moving_direction == "Angled":
-            moving_angle_deg = st.slider(
-                "Angle from Beam Axis (degrees)",
+        # Engineering angle convention:
+        # theta is measured counterclockwise from the positive beam axis (+x).
+        if moving_direction == "Down":
+            moving_angle_deg = 270.0
+        elif moving_direction == "Up":
+            moving_angle_deg = 90.0
+        else:
+            moving_angle_deg = st.number_input(
+                "Load Angle θ (degrees)",
                 min_value=0.0,
-                max_value=90.0,
-                value=45.0,
-                step=1.0
+                max_value=360.0,
+                value=315.0,
+                step=1.0,
+                key="custom_load_angle",
+                help=(
+                    "Angle is measured counterclockwise from the beam axis "
+                    "pointing to the right. Examples: 0° right, 90° up, "
+                    "180° left, 270° down."
+                )
             )
 
-            angle_col1, angle_col2 = st.columns(2)
-
-            with angle_col1:
-                moving_angled_vertical_direction = st.radio(
-                    "Vertical Direction",
-                    ["Downward", "Upward"],
-                    horizontal=True
-                )
-
-            with angle_col2:
-                moving_horizontal_direction = st.radio(
-                    "Horizontal Direction",
-                    ["Left", "Right"],
-                    horizontal=True
-                )
+            st.caption(
+                "Angle convention: 0° → right, 90° ↑ up, "
+                "180° ← left, 270° ↓ down."
+            )
 
         if "Feet" in len_unit:
             walker_pos_ft = st.slider(
@@ -1002,42 +1015,37 @@ with st.sidebar:
                 step=1.0
             )
 
-        if moving_direction == "Down":
-            walker_load = moving_input_kip
-            moving_horizontal_component = 0.0
-        elif moving_direction == "Up":
-            walker_load = -moving_input_kip
-            moving_horizontal_component = 0.0
-        else:
-            moving_angle_rad = np.deg2rad(moving_angle_deg)
+        moving_angle_rad = np.deg2rad(moving_angle_deg)
 
-            moving_vertical_abs = (
-                moving_input_kip
-                * np.sin(moving_angle_rad)
+        moving_horizontal_component = (
+            moving_input_kip * np.cos(moving_angle_rad)
+        )
+
+        moving_vertical_cartesian = (
+            moving_input_kip * np.sin(moving_angle_rad)
+        )
+
+        # Existing beam calculations use positive values for downward loads.
+        walker_load = -moving_vertical_cartesian
+
+        if moving_direction == "Angled":
+            horizontal_word = (
+                "right"
+                if moving_horizontal_component >= 0
+                else "left"
             )
 
-            moving_horizontal_abs = (
-                moving_input_kip
-                * np.cos(moving_angle_rad)
-            )
-
-            walker_load = (
-                moving_vertical_abs
-                if moving_angled_vertical_direction == "Downward"
-                else -moving_vertical_abs
-            )
-
-            moving_horizontal_component = (
-                moving_horizontal_abs
-                if moving_horizontal_direction == "Right"
-                else -moving_horizontal_abs
+            vertical_word = (
+                "up"
+                if moving_vertical_cartesian >= 0
+                else "down"
             )
 
             st.caption(
-                f"Vertical component = {abs(walker_load):.3f} kip; "
-                f"horizontal component = "
-                f"{abs(moving_horizontal_component):.3f} kip "
-                f"toward {moving_horizontal_direction.lower()}."
+                f"Fx = {abs(moving_horizontal_component):.3f} kip "
+                f"toward {horizontal_word}; "
+                f"Fy = {abs(moving_vertical_cartesian):.3f} kip "
+                f"toward {vertical_word}."
             )
 
         st.info(
@@ -1053,8 +1061,6 @@ with st.sidebar:
         moving_case = "None"
         moving_direction = "Down"
         moving_angle_deg = 90.0
-        moving_angled_vertical_direction = "Downward"
-        moving_horizontal_direction = "Right"
         moving_horizontal_component = 0.0
 
     st.subheader("2. Applied Moments")
@@ -1560,11 +1566,16 @@ for i, (p_val, x_val, meta) in enumerate(
     arrow_tail_y = 0.95 if p_val >= 0 else -0.95
 
     if meta["direction"] == "Angled":
-        angle_symbol = (
-            "↘"
-            if meta["angled_vertical_direction"] == "Downward"
-            else "↗"
-        )
+        normalized_angle = meta["angle_deg"] % 360.0
+
+        if 0.0 <= normalized_angle < 90.0:
+            angle_symbol = "↗"
+        elif 90.0 <= normalized_angle < 180.0:
+            angle_symbol = "↖"
+        elif 180.0 <= normalized_angle < 270.0:
+            angle_symbol = "↙"
+        else:
+            angle_symbol = "↘"
         p_label = (
             f"{angle_symbol} {p_label} @ {meta['angle_deg']:.0f}°"
         )
@@ -1602,18 +1613,16 @@ if enable_walker:
     )
 
     if moving_direction == "Angled":
-        if moving_angled_vertical_direction == "Downward":
-            moving_symbol = (
-                "↘"
-                if moving_horizontal_direction == "Right"
-                else "↙"
-            )
+        normalized_angle = moving_angle_deg % 360.0
+
+        if 0.0 <= normalized_angle < 90.0:
+            moving_symbol = "↗"
+        elif 90.0 <= normalized_angle < 180.0:
+            moving_symbol = "↖"
+        elif 180.0 <= normalized_angle < 270.0:
+            moving_symbol = "↙"
         else:
-            moving_symbol = (
-                "↗"
-                if moving_horizontal_direction == "Right"
-                else "↖"
-            )
+            moving_symbol = "↘"
         moving_label = (
             f"{moving_symbol} {moving_label} @ {moving_angle_deg:.0f}°"
         )
@@ -1807,11 +1816,16 @@ for i, (p_val, x_val, meta) in enumerate(
     )
 
     if meta["direction"] == "Angled":
-        angle_symbol = (
-            "↘"
-            if meta["angled_vertical_direction"] == "Downward"
-            else "↗"
-        )
+        normalized_angle = meta["angle_deg"] % 360.0
+
+        if 0.0 <= normalized_angle < 90.0:
+            angle_symbol = "↗"
+        elif 90.0 <= normalized_angle < 180.0:
+            angle_symbol = "↖"
+        elif 180.0 <= normalized_angle < 270.0:
+            angle_symbol = "↙"
+        else:
+            angle_symbol = "↘"
         p_label_text = (
             f"{angle_symbol} {p_label_text} @ {meta['angle_deg']:.0f}°"
         )
@@ -1851,18 +1865,16 @@ if enable_walker:
     )
 
     if moving_direction == "Angled":
-        if moving_angled_vertical_direction == "Downward":
-            moving_symbol = (
-                "↘"
-                if moving_horizontal_direction == "Right"
-                else "↙"
-            )
+        normalized_angle = moving_angle_deg % 360.0
+
+        if 0.0 <= normalized_angle < 90.0:
+            moving_symbol = "↗"
+        elif 90.0 <= normalized_angle < 180.0:
+            moving_symbol = "↖"
+        elif 180.0 <= normalized_angle < 270.0:
+            moving_symbol = "↙"
         else:
-            moving_symbol = (
-                "↗"
-                if moving_horizontal_direction == "Right"
-                else "↖"
-            )
+            moving_symbol = "↘"
         moving_text = (
             f"{moving_symbol} {moving_text} @ {moving_angle_deg:.0f}°"
         )
@@ -2041,10 +2053,7 @@ with st.expander("Show Detailed Calculations", expanded=False):
         direction_text = (
             meta["direction"]
             if meta["direction"] != "Angled"
-            else (
-                f"Angled {meta['angled_vertical_direction']} "
-                f"at {meta['angle_deg']:.0f}°"
-            )
+            else f"Angled at θ = {meta['angle_deg']:.0f}°"
         )
 
         st.write(
