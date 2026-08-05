@@ -1128,21 +1128,150 @@ with st.sidebar:
     st.subheader("3. Distributed Load (UDL)")
     enable_udl = st.toggle("Enable Distributed Load (UDL)", value=False)
 
+    # Internal UDL intensity is always stored in kip/in.
+    # The sidebar input follows the active display units.
     if enable_udl:
-        if "Pounds" in force_unit:
-            w_mag_lb = st.number_input("Intensity w (lbs/in)", min_value=1.0, value=500.0, step=50.0)
-            w_magnitude = w_mag_lb / 1000.0
-        else:
-            w_magnitude = st.number_input("Intensity w (kips/in)", min_value=0.001, value=0.5, step=0.1)
+        if st.session_state.unit_system == "Metric":
+            w_input = st.number_input(
+                "Intensity w (kN/m)",
+                min_value=0.001,
+                value=14.594,
+                step=0.5
+            )
 
-        col_u1, col_u2 = st.columns(2)
-        with col_u1:
-            x_start = st.number_input("Start x1 (in)", min_value=0.0, max_value=float(L), value=0.0)
-        with col_u2:
-            x_end = st.number_input("End x2 (in)", min_value=0.0, max_value=float(L), value=float(L))
+            # kN/m -> kip/in
+            w_magnitude = (
+                w_input
+                / 4.448221615
+                / 39.37007874
+            )
+            udl_display_unit = "kN/m"
+            udl_display_intensity = w_input
+
+            col_u1, col_u2 = st.columns(2)
+            with col_u1:
+                x_start_display = st.number_input(
+                    "Start x₁ (m)",
+                    min_value=0.0,
+                    max_value=float(L / 39.37007874),
+                    value=0.0,
+                    step=0.1
+                )
+            with col_u2:
+                x_end_display = st.number_input(
+                    "End x₂ (m)",
+                    min_value=0.0,
+                    max_value=float(L / 39.37007874),
+                    value=float(L / 39.37007874),
+                    step=0.1
+                )
+
+            x_start = x_start_display * 39.37007874
+            x_end = x_end_display * 39.37007874
+            udl_position_unit = "m"
+
+        elif "Feet" in len_unit:
+            if "Pounds" in force_unit:
+                w_input = st.number_input(
+                    "Intensity w (lb/ft)",
+                    min_value=1.0,
+                    value=1000.0,
+                    step=50.0
+                )
+
+                # lb/ft -> kip/in
+                w_magnitude = w_input / 12000.0
+                udl_display_unit = "lb/ft"
+            else:
+                w_input = st.number_input(
+                    "Intensity w (kip/ft)",
+                    min_value=0.001,
+                    value=1.0,
+                    step=0.1
+                )
+
+                # kip/ft -> kip/in
+                w_magnitude = w_input / 12.0
+                udl_display_unit = "kip/ft"
+
+            udl_display_intensity = w_input
+
+            col_u1, col_u2 = st.columns(2)
+            with col_u1:
+                x_start_display = st.number_input(
+                    "Start x₁ (ft)",
+                    min_value=0.0,
+                    max_value=float(L / 12.0),
+                    value=0.0,
+                    step=0.5
+                )
+            with col_u2:
+                x_end_display = st.number_input(
+                    "End x₂ (ft)",
+                    min_value=0.0,
+                    max_value=float(L / 12.0),
+                    value=float(L / 12.0),
+                    step=0.5
+                )
+
+            x_start = x_start_display * 12.0
+            x_end = x_end_display * 12.0
+            udl_position_unit = "ft"
+
+        else:
+            if "Pounds" in force_unit:
+                w_input = st.number_input(
+                    "Intensity w (lb/in)",
+                    min_value=1.0,
+                    value=83.333,
+                    step=10.0
+                )
+
+                # lb/in -> kip/in
+                w_magnitude = w_input / 1000.0
+                udl_display_unit = "lb/in"
+            else:
+                w_input = st.number_input(
+                    "Intensity w (kip/in)",
+                    min_value=0.0001,
+                    value=1.0 / 12.0,
+                    step=0.01
+                )
+
+                w_magnitude = w_input
+                udl_display_unit = "kip/in"
+
+            udl_display_intensity = w_input
+
+            col_u1, col_u2 = st.columns(2)
+            with col_u1:
+                x_start_display = st.number_input(
+                    "Start x₁ (in)",
+                    min_value=0.0,
+                    max_value=float(L),
+                    value=0.0,
+                    step=1.0
+                )
+            with col_u2:
+                x_end_display = st.number_input(
+                    "End x₂ (in)",
+                    min_value=0.0,
+                    max_value=float(L),
+                    value=float(L),
+                    step=1.0
+                )
+
+            x_start = x_start_display
+            x_end = x_end_display
+            udl_position_unit = "in"
+
     else:
         w_magnitude = 0.0
         x_start, x_end = 0.0, 0.0
+        x_start_display, x_end_display = 0.0, 0.0
+        udl_display_intensity = 0.0
+        udl_display_unit = ""
+        udl_position_unit = ""
 
     # ================= SECTION PROPERTIES =================
     st.subheader("4. Section Properties")
@@ -1743,7 +1872,10 @@ if enable_udl and udl_length > 0:
         hoverinfo="skip",
         showlegend=False
     ))
-    w_label = (f"w = {w_magnitude*1000:.1f} lbs/in" if "Pounds" in force_unit else f"w = {w_magnitude:.3f} kips/in")
+    w_label = (
+        f"w = {udl_display_intensity:.3f} "
+        f"{udl_display_unit}"
+    )
     fig_problem.add_annotation(
         x=(x_start + x_end) / 2,
         y=0.78,
@@ -1992,7 +2124,10 @@ if enable_udl and udl_length > 0:
         hoverinfo="skip",
         showlegend=False
     ))
-    w_label_text = (f"w = {w_magnitude*1000:.1f} lbs/in" if "Pounds" in force_unit else f"w = {w_magnitude:.3f} kips/in")
+    w_label_text = (
+        f"w = {udl_display_intensity:.3f} "
+        f"{udl_display_unit}"
+    )
     fig_fbd.add_annotation(
         x=(x_start + x_end) / 2, y=0.72,
         text=w_label_text,
@@ -2110,8 +2245,10 @@ with st.expander("Show Detailed Calculations", expanded=False):
 
     if enable_udl and udl_length > 0:
         st.write(
-            f"Distributed Load, w = {w_magnitude:.3f} kips/in "
-            f"from {x_start:.2f} in to {x_end:.2f} in"
+            f"Distributed Load, w = "
+            f"{udl_display_intensity:.3f} {udl_display_unit} "
+            f"from {x_start_display:.2f} {udl_position_unit} "
+            f"to {x_end_display:.2f} {udl_position_unit}"
         )
 
     st.write(f"Section Shape = {section_shape}")
@@ -2130,7 +2267,9 @@ with st.expander("Show Detailed Calculations", expanded=False):
         st.latex(r"W = wL_{UDL}")
         st.write(
             f"Equivalent UDL Force = "
-            f"{w_magnitude:.3f} × {udl_length:.2f} "
+            f"{udl_display_intensity:.3f} {udl_display_unit} × "
+            f"{(x_end_display - x_start_display):.2f} "
+            f"{udl_position_unit} "
             f"= {udl_total_force:.2f} kips"
         )
 
